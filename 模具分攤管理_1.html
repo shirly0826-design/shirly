@@ -1,0 +1,2053 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模具分攤管理</title>
+<meta property="og:title" content="模具分攤管理">
+<meta property="og:description" content="模具分攤管理">
+<meta name="description" content="模具分攤管理">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #F7F8FA;
+    --surface: #FFFFFF;
+    --border: #E2E6EA;
+    --border-dark: #C8CDD4;
+    --text: #1A1D23;
+    --text-sub: #5A6170;
+    --accent: #1B4FD8;
+    --accent-light: #EEF2FF;
+    --accent-hover: #1640B0;
+    --danger: #D63B3B;
+    --danger-light: #FEF2F2;
+    --warn: #D97706;
+    --warn-light: #FFFBEB;
+    --success: #15803D;
+    --success-light: #F0FDF4;
+    --font: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    --mono: 'Consolas', 'Courier New', monospace;
+    --radius: 6px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+
+  /* Header */
+  .app-header {
+    background: #2C3E55;
+    color: #fff;
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .app-header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+  .app-header .sub { font-size: 11px; opacity: 0.75; margin-left: 12px; }
+
+  /* Nav */
+  .nav-tabs {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    padding: 0 24px;
+    gap: 0;
+  }
+  .nav-tab {
+    padding: 10px 18px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-sub);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .nav-tab:hover { color: var(--accent); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  /* Layout */
+  .main { padding: 20px 24px; max-width: 1400px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .card-body { padding: 16px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 14px; border-radius: var(--radius);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    border: 1px solid transparent; transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-dark); }
+  .btn-secondary:hover { background: var(--bg); }
+  .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .btn-danger:hover { background: #B22E2E; }
+  .btn-success { background: var(--success); color: #fff; border-color: var(--success); }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+  .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Table */
+  .tbl-wrap { overflow-x: auto; width: 100%; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    background: #F1F4F8; color: var(--text-sub); font-weight: 600;
+    padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border);
+    white-space: nowrap; position: sticky; top: 0;
+  }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #FAFBFC; }
+  .tbl-number { text-align: right; font-family: var(--mono); }
+  .tbl-center { text-align: center; }
+
+  /* Status badges */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .badge-none { background: #FEE2E2; color: var(--danger); }
+  .badge-partial { background: var(--warn-light); color: var(--warn); }
+  .badge-done { background: var(--success-light); color: var(--success); }
+
+  /* Form */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 11px; font-weight: 600; color: var(--text-sub); }
+  .form-group input, .form-group select, .form-group textarea {
+    border: 1px solid var(--border-dark); border-radius: var(--radius);
+    padding: 6px 10px; font-size: 12px; font-family: var(--font);
+    background: var(--surface); color: var(--text); transition: border 0.12s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-light);
+  }
+  .form-group input[readonly] { background: var(--bg); color: var(--text-sub); }
+
+  /* Filters */
+  .filter-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .filter-row input, .filter-row select {
+    border: 1px solid var(--border-dark); border-radius: var(--radius);
+    padding: 5px 10px; font-size: 12px; min-width: 140px;
+  }
+  .filter-row input:focus, .filter-row select:focus { outline: none; border-color: var(--accent); }
+
+  /* Stats row */
+  .stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 16px; flex: 1; min-width: 130px;
+  }
+  .stat-label { font-size: 11px; color: var(--text-sub); margin-bottom: 4px; }
+  .stat-value { font-size: 20px; font-weight: 700; font-family: var(--mono); }
+  .stat-value.blue { color: var(--accent); }
+  .stat-value.orange { color: var(--warn); }
+  .stat-value.green { color: var(--success); }
+  .stat-value.red { color: var(--danger); }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    width: 90%; max-width: 680px; max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-title { font-size: 14px; font-weight: 600; }
+  .modal-close { background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text-sub); line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 20px; }
+  .modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* Print area */
+  .print-doc {
+    font-family: 'Times New Roman', serif;
+    padding: 20px; background: #fff;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 12px; line-height: 1.6;
+  }
+  .print-doc h2 { text-align: center; font-size: 16px; margin-bottom: 8px; }
+  .print-doc .doc-company { text-align: center; font-size: 13px; margin-bottom: 4px; }
+  .print-doc .doc-info { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 12px 0; font-size: 12px; }
+  .print-doc table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .print-doc th, .print-doc td { border: 1px solid #000; padding: 5px 8px; font-size: 11px; }
+  .print-doc th { background: #f0f0f0; }
+  .print-doc .total-row { font-weight: bold; }
+  .print-doc .signature { margin-top: 24px; text-align: right; }
+  /* 手填輸入框：螢幕上顯示輸入框，列印時只顯示底線 */
+  .doc-input {
+    border: none;
+    padding: 1px 4px; font-size: 12px; font-family: inherit;
+    background: transparent; outline: none; min-width: 80px;
+  }
+  .doc-input:focus { background: #FFFDE7; }
+  @media print { .doc-input { background: transparent !important; } }
+
+  /* Divider info */
+  .info-row { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-sub); }
+  .info-row strong { color: var(--text); }
+  .sep { color: var(--border-dark); }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border-dark); border-radius: var(--radius);
+    padding: 24px; text-align: center; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .upload-zone:hover { border-color: var(--accent); background: var(--accent-light); }
+  .upload-zone input { display: none; }
+  .upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-text { color: var(--text-sub); font-size: 12px; }
+
+  /* Toast */
+  .toast-container { position: fixed; top: 64px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--text); color: #fff; padding: 10px 16px;
+    border-radius: var(--radius); font-size: 12px; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); animation: slideIn 0.2s ease;
+    max-width: 320px;
+  }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+  @keyframes slideIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: translateX(0); } }
+
+  /* History sub-table */
+  .history-table { background: var(--bg); border-radius: 4px; padding: 8px; margin-top: 8px; }
+  .history-table table th { background: #E8EBF0; }
+
+  /* Inline edit input */
+  .inline-input {
+    border: 1px solid var(--border-dark); border-radius: 3px;
+    padding: 3px 6px; font-size: 12px; width: 100%; font-family: var(--font);
+  }
+  .inline-input:focus { outline: none; border-color: var(--accent); }
+
+  .text-right { text-align: right; }
+  .text-muted { color: var(--text-sub); }
+  .fw-bold { font-weight: 700; }
+  .mt-2 { margin-top: 8px; }
+  .mt-4 { margin-top: 16px; }
+  .gap-2 { gap: 8px; }
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+
+  /* Excel 風格欄位篩選 */
+  th.filterable { cursor: pointer; user-select: none; }
+  th.filterable .th-inner { display: inline-flex; align-items: center; gap: 4px; width: 100%; }
+  th.filterable .th-arrow { font-size: 10px; opacity: 0.45; flex-shrink: 0; }
+  th.filterable:hover .th-arrow { opacity: 1; }
+  th.filterable.filtered { background: #DDE6FF; color: var(--accent); }
+  th.filterable.filtered .th-arrow { opacity: 1; }
+
+  .col-dropdown {
+    display: none; position: fixed; z-index: 800;
+    background: var(--surface); border: 1px solid var(--border-dark);
+    border-radius: var(--radius); box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+    min-width: 200px; max-width: 300px; max-height: 340px;
+    overflow: hidden; flex-direction: column;
+  }
+  .col-dropdown.open { display: flex; }
+  .col-dd-search { padding: 7px 10px; border-bottom: 1px solid var(--border); flex-shrink:0; }
+  .col-dd-search input {
+    width: 100%; border: 1px solid var(--border-dark); border-radius: 4px;
+    padding: 4px 8px; font-size: 12px; font-family: var(--font);
+  }
+  .col-dd-search input:focus { outline: none; border-color: var(--accent); }
+  .col-dd-actions {
+    display: flex; gap: 10px; padding: 4px 10px 6px;
+    border-bottom: 1px solid var(--border); flex-shrink:0;
+  }
+  .col-dd-actions button {
+    font-size: 11px; cursor: pointer; background: none; border: none;
+    color: var(--accent); padding: 0; text-decoration: underline;
+  }
+  .col-dd-list { overflow-y: auto; flex: 1; }
+  .col-dd-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 12px; cursor: pointer; font-size: 12px;
+  }
+  .col-dd-item:hover { background: var(--accent-light); }
+  .col-dd-item label { cursor: pointer; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-dd-footer {
+    padding: 7px 10px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 6px; flex-shrink:0;
+    background: var(--surface);
+  }
+
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff; }
+    .print-doc { border: none; padding: 0; }
+  }
+
+  /* ===== 側邊欄版型 ===== */
+  .app-layout { display: flex; min-height: calc(100vh - 52px); }
+
+  .sidebar {
+    width: 200px; flex-shrink: 0;
+    background: #2C3E55;
+    display: flex; flex-direction: column;
+    position: sticky; top: 52px; height: calc(100vh - 52px);
+    overflow-y: auto;
+  }
+  .sidebar-section {
+    padding: 20px 16px 6px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.3); text-transform: uppercase;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; cursor: pointer;
+    color: rgba(255,255,255,0.7); font-size: 13px;
+    border-left: 3px solid transparent;
+    transition: all 0.12s; user-select: none;
+    border-radius: 0 4px 4px 0; margin: 1px 8px 1px 0;
+  }
+  .sidebar-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
+  .sidebar-item.active {
+    background: rgba(99,144,220,0.18);
+    color: #A8C4F0;
+    border-left-color: #5B8FD4;
+    font-weight: 600;
+  }
+  .sidebar-icon { font-size: 15px; flex-shrink: 0; }
+  .sidebar-footer {
+    margin-top: auto; padding: 12px 16px;
+    font-size: 10px; color: rgba(255,255,255,0.2);
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .content-area { flex: 1; overflow: hidden; }
+  .main { padding: 20px 24px; max-width: 1300px; }
+</style>
+</head>
+<body>
+
+<div class="app-header no-print">
+  <div style="display:flex;align-items:center;">
+    <h1>怡業股份有限公司 <span style="opacity:0.5;font-weight:300;margin:0 8px">/</span> 模具分攤管理</h1>
+  </div>
+  <div style="font-size:11px;opacity:0.7;" id="headerDate"></div>
+</div>
+
+<div class="app-layout no-print-layout">
+  <!-- 側邊欄 -->
+  <nav class="sidebar no-print">
+    <div class="sidebar-section">功能選單</div>
+    <div class="sidebar-item active" onclick="switchPage('list',this)">
+      <span class="sidebar-icon">📋</span> 模具清單
+    </div>
+    <div class="sidebar-item" onclick="switchPage('allocate',this)">
+      <span class="sidebar-icon">⚙️</span> 執行分攤
+    </div>
+    <div class="sidebar-item" onclick="switchPage('docs',this)">
+      <span class="sidebar-icon">🖨️</span> 單據產出
+    </div>
+    <div class="sidebar-item" onclick="switchPage('export',this)">
+      <span class="sidebar-icon">📊</span> 會計明細匯出
+    </div>
+    <div class="sidebar-footer">COMART © 2026</div>
+  </nav>
+
+  <!-- 主內容 -->
+  <div class="content-area">
+  <div class="main">
+
+<!-- ===== PAGE 1: 模具清單 ===== -->
+<div class="page active" id="page-list">
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">模具清單</span>
+      <div class="btn-group">
+        <label class="btn btn-primary" style="cursor:pointer;">
+          📂 匯入 ERP xlsx
+          <input type="file" accept=".xlsx,.xls" id="importFile" style="display:none" onchange="importXlsx(this)">
+        </label>
+        <button class="btn btn-secondary" onclick="openAddModal()">＋ 手工新增</button>
+        <button class="btn btn-secondary" onclick="exportListExcel()">📥 匯出 Excel</button>
+        <button class="btn btn-secondary" onclick="exportBackup()" style="color:#6B3FA0;border-color:#6B3FA0">💾 匯出備份</button>
+        <label class="btn btn-secondary" style="cursor:pointer;color:#6B3FA0;border-color:#6B3FA0">
+          📤 匯入備份
+          <input type="file" accept=".json" id="importBackupFile" style="display:none" onchange="importBackup(this)">
+        </label>
+        <button class="btn btn-secondary" onclick="clearAll()" style="color:var(--danger);border-color:var(--danger)">🗑 清除全部</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding-bottom:0">
+      <div class="filter-row" style="margin-bottom:12px">
+        <input type="text" id="filterKeyword" placeholder="搜尋品名／料號／客人／單號…" oninput="renderList()" style="flex:1;min-width:200px">
+        <select id="filterStatus" onchange="renderList()">
+          <option value="">全部狀態</option>
+          <option value="未分攤">未分攤</option>
+          <option value="部分分攤">部分分攤</option>
+          <option value="已結案">已結案</option>
+        </select>
+        <select id="filterMonth" onchange="renderList()">
+          <option value="">全部月份</option>
+        </select>
+        <span id="filterCount" class="text-muted"></span>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table style="min-width:1100px;width:100%;font-size:11px">
+        <thead>
+          <tr>
+            <th style="width:30px;padding:5px 4px">序號</th>
+            <th class="filterable" data-col="status" style="width:56px;padding:5px 4px" onclick="openColDD(event,'status')"><span class="th-inner">狀態<span class="th-arrow">▼</span></span></th>
+            <th class="filterable" data-col="orderNo" style="width:92px;padding:5px 4px" onclick="openColDD(event,'orderNo')"><span class="th-inner">訂單單號<span class="th-arrow">▼</span></span></th>
+            <th class="filterable" data-col="shipNo" style="width:92px;padding:5px 4px" onclick="openColDD(event,'shipNo')"><span class="th-inner">出貨單號<span class="th-arrow">▼</span></span></th>
+            <th class="filterable" data-col="name" style="width:130px;padding:5px 4px" onclick="openColDD(event,'name')"><span class="th-inner">品名規格<span class="th-arrow">▼</span></span></th>
+            <th class="filterable" data-col="partNo" style="width:82px;padding:5px 4px" onclick="openColDD(event,'partNo')"><span class="th-inner">料號<span class="th-arrow">▼</span></span></th>
+            <th style="width:36px;padding:5px 4px">數量</th>
+            <th class="tbl-number filterable" data-col="amount" style="width:72px;padding:5px 4px" onclick="openColDD(event,'amount')"><span class="th-inner">模具金額<span class="th-arrow">▼</span></span></th>
+            <th class="tbl-number" style="width:64px;padding:5px 4px">已分攤</th>
+            <th class="tbl-number" style="width:38px;padding:5px 4px">差異</th>
+            <th class="filterable" data-col="contractNo" style="width:68px;padding:5px 4px" onclick="openColDD(event,'contractNo')"><span class="th-inner">合同號<span class="th-arrow">▼</span></span></th>
+            <th class="filterable" data-col="allocDate" style="width:72px;padding:5px 4px" onclick="openColDD(event,'allocDate')"><span class="th-inner">分攤日期<span class="th-arrow">▼</span></span></th>
+            <th class="filterable" data-col="apNo" style="width:114px;padding:5px 4px" onclick="openColDD(event,'apNo')"><span class="th-inner">應收憑單<span class="th-arrow">▼</span></span></th>
+            <th class="tbl-center" style="width:80px;padding:5px 4px">操作</th>
+          </tr>
+        </thead>        <tbody id="listTbody"></tbody>
+      </table>
+    </div>
+    <div id="listEmpty" style="padding:32px;text-align:center;color:var(--text-sub);display:none">
+      尚無資料。請匯入 ERP xlsx 或手工新增模具。
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAGE 2: 執行分攤 ===== -->
+<div class="page" id="page-allocate">
+
+  <!-- 填寫區：在上方，初始隱藏 -->
+  <div class="card" id="allocFormCard" style="display:none">
+    <div class="card-header">
+      <span class="card-title">填寫本次分攤資料</span>
+      <span id="allocSelectedCount" class="text-muted" style="font-size:11px"></span>
+    </div>
+    <div class="card-body">
+      <div id="allocFormItems"></div>
+      <div class="form-grid mt-4" style="max-width:500px">
+        <div class="form-group">
+          <label>分攤日期 *</label>
+          <input type="date" id="allocDate" value="">
+        </div>
+        <div class="form-group">
+          <label>分攤合同號</label>
+          <input type="text" id="allocContract" placeholder="自由填寫">
+        </div>
+      </div>
+      <div class="btn-group mt-4">
+        <button class="btn btn-primary" onclick="saveAlloc()">✔ 儲存分攤</button>
+        <button class="btn btn-secondary" onclick="clearAllocSelection()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 選取清單：在下方 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">執行分攤</span>
+      <span class="text-muted" style="font-size:11px">勾選模具 → 上方填入分攤金額 → 儲存</span>
+    </div>
+    <div class="card-body" style="padding-bottom:0">
+      <div class="filter-row" style="margin-bottom:12px">
+        <input type="text" id="allocFilter" placeholder="搜尋品名／料號／客人…" oninput="renderAllocList()" style="flex:1">
+        <select id="allocStatusFilter" onchange="renderAllocList()">
+          <option value="active">未結案（未分攤＋部分分攤）</option>
+          <option value="">全部</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>選取</th>
+            <th>品名規格</th>
+            <th>料號</th>
+            <th>客人</th>
+            <th>出貨日期</th>
+            <th class="tbl-number">模具金額</th>
+            <th class="tbl-number">已分攤</th>
+            <th class="tbl-number">剩餘差異</th>
+            <th>狀態</th>
+          </tr>
+        </thead>
+        <tbody id="allocTbody"></tbody>
+      </table>
+    </div>
+    <div id="allocEmpty" style="padding:32px;text-align:center;color:var(--text-sub);display:none">無未結案模具。</div>
+  </div>
+
+</div>
+
+<!-- ===== PAGE 3: 單據產出 ===== -->
+<div class="page" id="page-docs">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">選取分攤紀錄</span>
+    </div>
+    <div class="card-body" style="padding-bottom:0">
+      <div class="filter-row" style="margin-bottom:12px">
+        <input type="text" id="docFilter" placeholder="搜尋…" oninput="renderDocList()" style="flex:1">
+        <select id="docMonthFilter" onchange="renderDocList()">
+          <option value="">全部月份</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="selectAllDocs()">全選</button>
+        <button class="btn btn-secondary btn-sm" onclick="clearDocSel()">清除選取</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>選取</th>
+            <th>分攤日期</th>
+            <th>品名規格</th>
+            <th>料號</th>
+            <th>客人</th>
+            <th class="tbl-number">本次分攤金額</th>
+            <th>分攤合同號</th>
+            <th>出貨單號</th>
+            <th>應收憑單</th>
+          </tr>
+        </thead>
+        <tbody id="docTbody"></tbody>
+      </table>
+    </div>
+    <div id="docEmpty" style="padding:32px;text-align:center;color:var(--text-sub);display:none">無分攤紀錄。</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">產出單據</span></div>
+    <div class="card-body">
+      <!-- 隱藏的共用欄 id，供 JS fallback 用（值永遠為空，以模具資料為主） -->
+      <div style="display:none">
+        <input type="text" id="shared_docNo"><input type="text" id="shared_apNo">
+        <input type="text" id="shared_recNo"><input type="text" id="shared_inboundNo">
+        <input type="text" id="shared_purchaseNo"><input type="text" id="shared_voucherNo">
+        <input type="text" id="shared_invoiceNo"><input type="number" id="shared_rate">
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="previewDoc('invoice')">🧾 預覽 INVOICE</button>
+        <button class="btn btn-secondary" onclick="previewDoc('inbound')">📄 預覽入庫單</button>
+        <button class="btn btn-secondary" onclick="previewDoc('purchase')">📄 預覽進貨單</button>
+      </div>
+      <p class="text-muted mt-2" style="font-size:11px">※ 請先在上方選取分攤紀錄，再點擊產出。單據欄位資料請至模具清單「編輯」中填寫。預覽後可使用瀏覽器列印（Ctrl+P）。</p>
+    </div>
+  </div>
+
+  <div id="docPreviewArea"></div>
+</div>
+
+<!-- ===== PAGE 4: 會計明細匯出 ===== -->
+<div class="page" id="page-export">
+  <div class="card">
+    <div class="card-header"><span class="card-title">當月模具分攤明細匯出</span></div>
+    <div class="card-body">
+      <div class="form-grid" style="max-width:400px;margin-bottom:16px">
+        <div class="form-group">
+          <label>選取月份</label>
+          <input type="month" id="exportMonth">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="exportAccounting()">📥 匯出 Excel</button>
+      <p class="text-muted mt-2" style="font-size:11px">※ 匯出當月所有分攤紀錄，含當月總計列，格式與原始清單一致。</p>
+    </div>
+  </div>
+
+  <div class="card" id="exportPreviewCard" style="display:none">
+    <div class="card-header"><span class="card-title">預覽</span></div>
+    <div class="tbl-wrap" id="exportPreviewBody"></div>
+  </div>
+</div>
+
+</div><!-- end main -->
+  </div><!-- end content-area -->
+</div><!-- end app-layout -->
+
+<!-- ===== DATALISTS（由 JS 動態填入選項）===== -->
+<datalist id="dl_name"></datalist>
+<datalist id="dl_partno"></datalist>
+<datalist id="dl_customer"></datalist>
+<datalist id="dl_amount"></datalist>
+<datalist id="dl_unit"></datalist>
+<datalist id="dl_shipdate"></datalist>
+<datalist id="dl_orderNo"></datalist>
+<datalist id="dl_shipNo"></datalist>
+<datalist id="dl_apNo"></datalist>
+
+<!-- ===== MODAL: 單據欄位 ===== -->
+<div class="modal-overlay" id="docFieldsModal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title" id="docFieldsTitle">單據資料</span>
+      <button class="modal-close" onclick="closeModal('docFieldsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--text-sub);margin-bottom:14px">填寫後產出單據時自動帶入，不需每次手動填寫。</p>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>帳款編號（進貨單）</label>
+          <input type="text" id="df_apAccNo" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>收貨單號（入庫單）</label>
+          <input type="text" id="df_recNo" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>入庫單號（入庫單＋進貨單共用）</label>
+          <input type="text" id="df_inboundNo" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>傳票編號（進貨單）</label>
+          <input type="text" id="df_voucherNo" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>發票號碼（進貨單）</label>
+          <input type="text" id="df_invoiceNo" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>匯率 CNY→TWD</label>
+          <input type="number" id="df_rate" step="0.001" placeholder="例：4.348" autocomplete="off">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('docFieldsModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveDocFields()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 新增模具 ===== -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="addModalTitle">新增模具</span>
+      <button class="modal-close" onclick="closeModal('addModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>品名規格 *</label>
+          <input type="text" id="f_name" list="dl_name" placeholder="塑膠擋板模具_TESLA…" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>料號 *</label>
+          <input type="text" id="f_partno" list="dl_partno" placeholder="BC02230167" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>客人 *</label>
+          <input type="text" id="f_customer" list="dl_customer" placeholder="怡業股份有限公司" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>模具金額 (RMB) *</label>
+          <input type="number" id="f_amount" list="dl_amount" placeholder="12430" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>數量</label>
+          <input type="number" id="f_qty" value="1">
+        </div>
+        <div class="form-group">
+          <label>單位</label>
+          <input type="text" id="f_unit" list="dl_unit" value="PCS" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>出貨日期</label>
+          <input type="text" id="f_shipdate" list="dl_shipdate" placeholder="YYYY-MM-DD" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>訂單單號</label>
+          <input type="text" id="f_orderNo" list="dl_orderNo" placeholder="PC133-2306070002" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>出貨單號</label>
+          <input type="text" id="f_shipNo" list="dl_shipNo" placeholder="PH124-2410090002" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>應收憑單 TIPTOP</label>
+          <input type="text" id="f_apNo" list="dl_apNo" placeholder="PH129-2410090001" autocomplete="off">
+        </div>
+      </div>
+      <!-- 單據欄位 -->
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--text-sub);margin-bottom:10px">📄 單據資料（產出入庫單／進貨單時自動帶入）</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>帳款編號（進貨單）</label>
+            <input type="text" id="f_apAccNo" placeholder="手動填入" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>收貨單號（入庫單）</label>
+            <input type="text" id="f_recNo" placeholder="手動填入" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>入庫單號（進貨單）</label>
+            <input type="text" id="f_inboundNo" placeholder="手動填入" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>傳票編號（進貨單）</label>
+            <input type="text" id="f_voucherNo" placeholder="手動填入" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>發票號碼（進貨單）</label>
+            <input type="text" id="f_invoiceNo" placeholder="手動填入" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>匯率 CNY→TWD</label>
+            <input type="number" id="f_rate" placeholder="例：4.348" step="0.001" autocomplete="off">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveMold()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 分攤歷史 ===== -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal" style="max-width:780px">
+    <div class="modal-header">
+      <span class="modal-title" id="historyModalTitle">分攤歷史</span>
+      <button class="modal-close" onclick="closeModal('historyModal')">✕</button>
+    </div>
+    <div class="modal-body" id="historyModalBody"></div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 文件預覽 ===== -->
+<div class="modal-overlay" id="docModal">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-header">
+      <span class="modal-title" id="docModalTitle">單據預覽</span>
+      <button class="modal-close" onclick="closeModal('docModal')">✕</button>
+    </div>
+    <div class="modal-body" id="docModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('docModal')">關閉</button>
+      <button class="btn btn-primary" onclick="printModal()">🖨 列印</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- 欄位篩選下拉 -->
+<div class="col-dropdown" id="colDropdown">
+  <div class="col-dd-search"><input type="text" id="colDdSearch" placeholder="搜尋…" oninput="filterDdList()"></div>
+  <div class="col-dd-actions">
+    <button onclick="ddSelectAll()">全選</button>
+    <button onclick="ddClearAll()">清除</button>
+  </div>
+  <div class="col-dd-list" id="colDdList"></div>
+  <div class="col-dd-footer">
+    <button class="btn btn-secondary btn-sm" onclick="closeColDD()">取消</button>
+    <button class="btn btn-primary btn-sm" onclick="applyColDD()">套用</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA LAYER
+// ============================================================
+const STORAGE_KEY = 'comart_molds_v2';
+
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+let molds = loadData(); // array of mold objects
+// mold = { id, seq, orderNo, shipNo, name, partNo, qty, unit, shipDate, customer, amount, history:[], contractNo, apNo, status }
+// history item = { date, contract, allocAmount }
+
+function getStatus(mold) {
+  const total = allocatedTotal(mold);
+  if (total <= 0) return '未分攤';
+  if (total >= mold.amount) return '已結案';
+  return '部分分攤';
+}
+function allocatedTotal(mold) {
+  return (mold.history || []).reduce((s, h) => s + (parseFloat(h.allocAmount) || 0), 0);
+}
+function diffAmount(mold) {
+  return (parseFloat(mold.amount) || 0) - allocatedTotal(mold);
+}
+function nextId() {
+  return Date.now() + Math.random().toString(36).slice(2, 6);
+}
+function fmtDate(d) {
+  if (!d) return '';
+  if (typeof d === 'number') {
+    // Excel serial
+    const date = new Date(Math.round((d - 25569) * 86400 * 1000));
+    return date.toISOString().slice(0, 10);
+  }
+  return String(d).slice(0, 10);
+}
+function fmtNum(n) {
+  if (n === null || n === undefined || n === '') return '';
+  return Number(n).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, type='') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ============================================================
+// NAV
+// ============================================================
+function switchPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (el) el.classList.add('active');
+  if (id === 'list') { renderStats(); renderList(); }
+  if (id === 'allocate') renderAllocList();
+  if (id === 'docs') renderDocList();
+  if (id === 'export') { populateExportMonth(); renderExportPreview(); }
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function renderStats() {
+  const total = molds.length;
+  const none = molds.filter(m => getStatus(m) === '未分攤').length;
+  const partial = molds.filter(m => getStatus(m) === '部分分攤').length;
+  const done = molds.filter(m => getStatus(m) === '已結案').length;
+  const totalAmt = molds.reduce((s, m) => s + (parseFloat(m.amount) || 0), 0);
+  const totalAlloc = molds.reduce((s, m) => s + allocatedTotal(m), 0);
+  const totalDiff = totalAmt - totalAlloc;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-label">模具總筆數</div><div class="stat-value blue">${total}</div></div>
+    <div class="stat-card"><div class="stat-label">未分攤</div><div class="stat-value red">${none}</div></div>
+    <div class="stat-card"><div class="stat-label">部分分攤</div><div class="stat-value orange">${partial}</div></div>
+    <div class="stat-card"><div class="stat-label">已結案</div><div class="stat-value green">${done}</div></div>
+    <div class="stat-card"><div class="stat-label">模具金額合計 (RMB)</div><div class="stat-value blue">${fmtNum(totalAmt)}</div></div>
+    <div class="stat-card"><div class="stat-label">已分攤金額合計 (RMB)</div><div class="stat-value green">${fmtNum(totalAlloc)}</div></div>
+    <div class="stat-card"><div class="stat-label">未分攤金額合計 (RMB)</div><div class="stat-value red">${fmtNum(totalDiff)}</div></div>
+  `;
+}
+
+// ============================================================
+// 欄位篩選（Excel 下拉）
+// ============================================================
+let colFilters = {}; // { colKey: Set of selected values } — empty Set = 全選
+let ddCurrentCol = null;
+let ddTempSelected = new Set();
+
+function getColValues(col) {
+  if (col === 'allocDate') {
+    const dates = new Set();
+    molds.forEach(m => (m.history||[]).forEach(h => { if(h.date) dates.add(h.date); }));
+    return [...dates].sort().reverse();
+  }
+  return [...new Set(molds.map(m => {
+    if (col === 'status') return getStatus(m);
+    if (col === 'contractNo') return m.contractNo || '';
+    return String(m[col] || '');
+  }))].sort();
+}
+
+function openColDD(e, col) {
+  e.stopPropagation();
+  ddCurrentCol = col;
+  const dd = document.getElementById('colDropdown');
+  const existing = colFilters[col];
+  const allVals = getColValues(col);
+
+  // 若無篩選 → 全選
+  ddTempSelected = existing ? new Set(existing) : new Set(allVals);
+
+  document.getElementById('colDdSearch').value = '';
+  renderDdList(allVals);
+
+  // 定位
+  const rect = e.currentTarget.getBoundingClientRect();
+  dd.style.top = (rect.bottom + 2) + 'px';
+  dd.style.left = Math.min(rect.left, window.innerWidth - 310) + 'px';
+  dd.classList.add('open');
+}
+
+function renderDdList(vals) {
+  if (!vals) vals = getColValues(ddCurrentCol);
+  const kw = document.getElementById('colDdSearch').value.toLowerCase();
+  const filtered = vals.filter(v => v.toLowerCase().includes(kw));
+  document.getElementById('colDdList').innerHTML = filtered.map(v => {
+    const chk = ddTempSelected.has(v) ? 'checked' : '';
+    const label = v === '' ? '（空白）' : v;
+    return `<div class="col-dd-item" onclick="toggleDdItem(this,'${v.replace(/'/g,"\\'")}')">
+      <input type="checkbox" ${chk} onclick="event.stopPropagation();toggleDdItem(this.parentElement,'${v.replace(/'/g,"\\'")}')">
+      <label>${label}</label>
+    </div>`;
+  }).join('') || '<div style="padding:8px 12px;color:var(--text-sub);font-size:12px">無符合項目</div>';
+}
+
+function filterDdList() { renderDdList(); }
+
+function toggleDdItem(el, val) {
+  const chk = el.querySelector('input[type=checkbox]');
+  if (ddTempSelected.has(val)) { ddTempSelected.delete(val); chk.checked = false; }
+  else { ddTempSelected.add(val); chk.checked = true; }
+}
+function ddSelectAll() {
+  getColValues(ddCurrentCol).forEach(v => ddTempSelected.add(v));
+  renderDdList();
+}
+function ddClearAll() { ddTempSelected.clear(); renderDdList(); }
+
+function applyColDD() {
+  const allVals = getColValues(ddCurrentCol);
+  // 若全選則移除篩選，否則記錄
+  if (ddTempSelected.size === allVals.length && allVals.every(v => ddTempSelected.has(v))) {
+    delete colFilters[ddCurrentCol];
+  } else {
+    colFilters[ddCurrentCol] = new Set(ddTempSelected);
+  }
+  closeColDD();
+  updateFilteredHeaders();
+  renderList();
+}
+
+function closeColDD() {
+  document.getElementById('colDropdown').classList.remove('open');
+  ddCurrentCol = null;
+}
+
+function updateFilteredHeaders() {
+  document.querySelectorAll('th.filterable').forEach(th => {
+    const col = th.dataset.col;
+    th.classList.toggle('filtered', !!colFilters[col]);
+  });
+}
+
+// 點外側關閉
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('colDropdown');
+  if (dd && dd.classList.contains('open') && !dd.contains(e.target)) closeColDD();
+});
+
+// ============================================================
+// PAGE 1: LIST
+// ============================================================
+function getMonths() {
+  // 模具清單用出貨日期
+  const months = new Set();
+  molds.forEach(m => { if (m.shipDate) months.add(m.shipDate.slice(0, 7)); });
+  return [...months].sort().reverse();
+}
+
+function getAllocMonths() {
+  // 單據產出、會計匯出用分攤日期
+  const months = new Set();
+  molds.forEach(m => {
+    (m.history || []).forEach(h => {
+      if (h.date) months.add(h.date.slice(0, 7));
+    });
+  });
+  return [...months].sort().reverse();
+}
+
+function populateMonthFilter(selId) {
+  const sel = document.getElementById(selId);
+  const cur = sel.value;
+  // 單據產出和會計匯出用分攤月份；模具清單用出貨月份
+  const useAllocMonths = ['docMonthFilter','exportMonth'].includes(selId);
+  const months = useAllocMonths ? getAllocMonths() : getMonths();
+  sel.innerHTML = selId === 'exportMonth' ? '' : '<option value="">全部月份</option>';
+  months.forEach(m => {
+    sel.innerHTML += `<option value="${m}" ${m===cur?'selected':''}>${m}</option>`;
+  });
+  // 會計匯出預設選最新月份
+  if (selId === 'exportMonth' && !cur && months.length > 0) sel.value = months[0];
+}
+
+function renderList() {
+  populateMonthFilter('filterMonth');
+  renderStats();
+  const kw = document.getElementById('filterKeyword').value.toLowerCase();
+  const st = document.getElementById('filterStatus').value;
+  const mo = document.getElementById('filterMonth').value;
+  let rows = molds.filter(m => {
+    const status = getStatus(m);
+    if (st && status !== st) return false;
+    if (mo && !(m.shipDate || '').startsWith(mo)) return false;
+    if (kw) {
+      const haystack = [m.name, m.partNo, m.customer, m.orderNo, m.shipNo, m.apNo].join(' ').toLowerCase();
+      if (!haystack.includes(kw)) return false;
+    }
+    // 欄位下拉篩選
+    for (const [col, vals] of Object.entries(colFilters)) {
+      if (col === 'allocDate') {
+        const dates = (m.history||[]).map(h=>h.date).filter(Boolean);
+        if (!dates.some(d => vals.has(d))) return false;
+      } else {
+        let v;
+        if (col === 'status') v = status;
+        else if (col === 'contractNo') v = m.contractNo || '';
+        else v = String(m[col] || '');
+        if (!vals.has(v)) return false;
+      }
+    }
+    return true;
+  });
+  document.getElementById('filterCount').textContent = `共 ${rows.length} 筆`;
+  const tbody = document.getElementById('listTbody');
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    document.getElementById('listEmpty').style.display = 'block';
+    return;
+  }
+  document.getElementById('listEmpty').style.display = 'none';
+  tbody.innerHTML = rows.map((m, i) => {
+    const status = getStatus(m);
+    const badgeCls = status === '未分攤' ? 'badge-none' : status === '部分分攤' ? 'badge-partial' : 'badge-done';
+    const alloc = allocatedTotal(m);
+    const diff = diffAmount(m);
+    return `<tr>
+      <td class="tbl-center" style="padding:5px">${m.seq || i+1}</td>
+      <td style="padding:5px"><span class="badge ${badgeCls}">${status}</span></td>
+      <td style="padding:5px;font-family:var(--mono);font-size:11px;white-space:normal;word-break:break-all">${m.orderNo || ''}</td>
+      <td style="padding:5px;font-family:var(--mono);font-size:11px;white-space:normal;word-break:break-all">${m.shipNo || ''}</td>
+      <td style="padding:5px;white-space:normal;word-break:break-all;font-size:11px">${m.name || ''}</td>
+      <td style="padding:5px;font-family:var(--mono);font-size:11px">${m.partNo || ''}</td>
+      <td class="tbl-center" style="padding:5px;font-size:11px">${m.qty || ''} ${m.unit || ''}</td>
+      <td class="tbl-number" style="padding:5px">${fmtNum(m.amount)}</td>
+      <td class="tbl-number" style="padding:5px;color:var(--success)">${alloc > 0 ? fmtNum(alloc) : ''}</td>
+      <td class="tbl-number" style="padding:5px;color:${diff > 0 ? 'var(--danger)' : 'var(--success)'}">${fmtNum(diff)}</td>
+      <td style="padding:5px;font-size:11px">${m.contractNo || ''}</td>
+      <td style="padding:5px;font-family:var(--mono);font-size:11px">
+        ${(() => {
+          const dates = (m.history || []).map(h => h.date).filter(Boolean).sort().reverse();
+          if (dates.length === 0) return '';
+          if (dates.length === 1) return dates[0];
+          return `<select style="font-size:11px;border:1px solid var(--border-dark);border-radius:3px;padding:2px 4px;background:var(--surface);cursor:pointer">
+            ${dates.map(d => `<option>${d}</option>`).join('')}
+          </select>`;
+        })()}
+      </td>
+      <td style="padding:5px;font-family:var(--mono);font-size:11px;white-space:normal;word-break:break-all">${m.apNo || ''}</td>
+      <td class="tbl-center" style="padding:5px 3px;white-space:nowrap;overflow:visible;position:relative">
+        <button class="btn btn-sm btn-secondary" style="padding:3px 5px;font-size:11px" onclick="showHistory('${m.id}')">歷史</button>
+        <button class="btn btn-sm btn-secondary" style="padding:3px 5px;font-size:11px" onclick="editMold('${m.id}')">編輯</button>
+        <button class="btn btn-sm" style="color:var(--danger);border:1px solid var(--danger);padding:3px 5px;border-radius:4px;cursor:pointer;background:#fff;font-size:11px" onclick="deleteMold('${m.id}')">刪</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function exportBackup() {
+  const data = { version: 1, exportDate: today(), molds };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `模具分攤備份_${today()}.json`;
+  a.click();
+  toast('備份匯出成功', 'success');
+}
+
+function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.molds || !Array.isArray(data.molds)) {
+        toast('備份格式錯誤', 'error'); return;
+      }
+      if (!confirm(`確定匯入備份？\n備份日期：${data.exportDate || '未知'}\n共 ${data.molds.length} 筆模具\n\n⚠️ 現有資料將被覆蓋`)) return;
+      molds = data.molds;
+      saveData(molds);
+      renderList();
+      toast(`備份匯入成功，共 ${molds.length} 筆`, 'success');
+    } catch(err) {
+      toast('匯入失敗：' + err.message, 'error');
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function exportListExcel() {
+  // 依目前篩選條件取得資料
+  const kw = document.getElementById('filterKeyword').value.toLowerCase();
+  const st = document.getElementById('filterStatus').value;
+  const mo = document.getElementById('filterMonth').value;
+  let rows = molds.filter(m => {
+    const status = getStatus(m);
+    if (st && status !== st) return false;
+    if (mo && !(m.shipDate || '').startsWith(mo)) return false;
+    if (kw) {
+      const h = [m.name, m.partNo, m.customer, m.orderNo, m.shipNo, m.apNo].join(' ').toLowerCase();
+      if (!h.includes(kw)) return false;
+    }
+    for (const [col, vals] of Object.entries(colFilters)) {
+      let v = col === 'status' ? status : col === 'contractNo' ? (m.contractNo||'') : String(m[col]||'');
+      if (!vals.has(v)) return false;
+    }
+    return true;
+  });
+
+  const header = ['序號','狀態','訂單單號','出貨單號','品名規格','料號','數量','單位',
+    '出貨日期','客人','模具金額(RMB)','已分攤金額(RMB)','差異(RMB)','分攤合同號','應收憑單TIPTOP'];
+
+  const data = rows.map((m, i) => {
+    const status = getStatus(m);
+    const alloc = allocatedTotal(m);
+    const diff = diffAmount(m);
+    return [
+      m.seq || i+1, status, m.orderNo||'', m.shipNo||'', m.name, m.partNo||'',
+      m.qty||'', m.unit||'', m.shipDate||'', m.customer||'',
+      m.amount||0, alloc, diff, m.contractNo||'', m.apNo||''
+    ];
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+  ws['!cols'] = [6,8,18,18,30,14,6,6,12,20,14,14,12,16,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws, '模具清單');
+  const now = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  XLSX.writeFile(wb, `模具清單_${now}.xlsx`);
+  toast('匯出成功', 'success');
+}
+
+// ============================================================
+// ============================================================
+let editingId = null;
+
+// 從現有 molds 資料填充各欄位的 datalist
+// ============================================================
+// 單據欄位快速編輯
+// ============================================================
+let docFieldsMoldId = null;
+function openDocFields(id) {
+  const m = molds.find(x => x.id === id);
+  if (!m) return;
+  docFieldsMoldId = id;
+  document.getElementById('docFieldsTitle').textContent = `單據資料 — ${m.name}`;
+  document.getElementById('df_apAccNo').value    = m.apAccNo    || '';
+  document.getElementById('df_recNo').value      = m.recNo      || '';
+  document.getElementById('df_inboundNo').value  = m.inboundNo  || '';
+  document.getElementById('df_voucherNo').value  = m.voucherNo  || '';
+  document.getElementById('df_invoiceNo').value  = m.invoiceNo  || '';
+  document.getElementById('df_rate').value       = m.rate       || '';
+  document.getElementById('docFieldsModal').classList.add('open');
+}
+function saveDocFields() {
+  const m = molds.find(x => x.id === docFieldsMoldId);
+  if (!m) return;
+  m.apAccNo    = document.getElementById('df_apAccNo').value.trim();
+  m.recNo      = document.getElementById('df_recNo').value.trim();
+  m.inboundNo  = document.getElementById('df_inboundNo').value.trim();
+  m.voucherNo  = document.getElementById('df_voucherNo').value.trim();
+  m.invoiceNo  = document.getElementById('df_invoiceNo').value.trim();
+  m.rate       = document.getElementById('df_rate').value;
+  saveData(molds);
+  closeModal('docFieldsModal');
+  toast('單據資料已儲存', 'success');
+}
+
+function fillDatalist() {
+  const fields = {
+    dl_name:    [...new Set(molds.map(m => m.name).filter(Boolean))],
+    dl_partno:  [...new Set(molds.map(m => m.partNo).filter(Boolean))],
+    dl_customer:[...new Set(molds.map(m => m.customer).filter(Boolean))],
+    dl_amount:  [...new Set(molds.map(m => String(m.amount)).filter(Boolean))],
+    dl_unit:    [...new Set(molds.map(m => m.unit).filter(Boolean))],
+    dl_shipdate:[...new Set(molds.map(m => m.shipDate).filter(Boolean))].sort().reverse(),
+    dl_orderNo: [...new Set(molds.map(m => m.orderNo).filter(Boolean))],
+    dl_shipNo:  [...new Set(molds.map(m => m.shipNo).filter(Boolean))],
+    dl_apNo:    [...new Set(molds.map(m => m.apNo).filter(Boolean))],
+  };
+  Object.entries(fields).forEach(([id, vals]) => {
+    const dl = document.getElementById(id);
+    if (!dl) return;
+    dl.innerHTML = vals.map(v => `<option value="${v.replace(/"/g,'&quot;')}">`).join('');
+  });
+}
+
+function openAddModal() {
+  editingId = null;
+  fillDatalist();
+  document.getElementById('addModalTitle').textContent = '新增模具';
+  ['f_name','f_partno','f_customer','f_orderNo','f_shipNo','f_apNo',
+   'f_apAccNo','f_recNo','f_inboundNo','f_voucherNo','f_invoiceNo','f_rate'
+  ].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_amount').value = '';
+  document.getElementById('f_qty').value = 1;
+  document.getElementById('f_unit').value = 'PCS';
+  document.getElementById('f_shipdate').value = '';
+  document.getElementById('addModal').classList.add('open');
+}
+function editMold(id) {
+  const m = molds.find(x => x.id === id);
+  if (!m) return;
+  editingId = id;
+  fillDatalist();
+  document.getElementById('addModalTitle').textContent = '編輯模具';
+  document.getElementById('f_name').value = m.name || '';
+  document.getElementById('f_partno').value = m.partNo || '';
+  document.getElementById('f_customer').value = m.customer || '';
+  document.getElementById('f_amount').value = m.amount || '';
+  document.getElementById('f_qty').value = m.qty || 1;
+  document.getElementById('f_unit').value = m.unit || 'PCS';
+  document.getElementById('f_shipdate').value = m.shipDate || '';
+  document.getElementById('f_orderNo').value = m.orderNo || '';
+  document.getElementById('f_shipNo').value = m.shipNo || '';
+  document.getElementById('f_apNo').value = m.apNo || '';
+  document.getElementById('f_apAccNo').value = m.apAccNo || '';
+  document.getElementById('f_recNo').value = m.recNo || '';
+  document.getElementById('f_inboundNo').value = m.inboundNo || '';
+  document.getElementById('f_voucherNo').value = m.voucherNo || '';
+  document.getElementById('f_invoiceNo').value = m.invoiceNo || '';
+  document.getElementById('f_rate').value = m.rate || '';
+  document.getElementById('addModal').classList.add('open');
+}
+function saveMold() {
+  const name = document.getElementById('f_name').value.trim();
+  const partNo = document.getElementById('f_partno').value.trim();
+  const customer = document.getElementById('f_customer').value.trim();
+  const amount = parseFloat(document.getElementById('f_amount').value);
+  if (!name || !partNo || !customer || isNaN(amount)) {
+    toast('請填寫必填欄位（品名、料號、客人、模具金額）', 'error'); return;
+  }
+  const docFields = {
+    apAccNo: document.getElementById('f_apAccNo').value.trim(),
+    recNo: document.getElementById('f_recNo').value.trim(),
+    inboundNo: document.getElementById('f_inboundNo').value.trim(),
+    voucherNo: document.getElementById('f_voucherNo').value.trim(),
+    invoiceNo: document.getElementById('f_invoiceNo').value.trim(),
+    rate: document.getElementById('f_rate').value,
+  };
+  if (editingId) {
+    const m = molds.find(x => x.id === editingId);
+    Object.assign(m, { name, partNo, customer, amount,
+      qty: document.getElementById('f_qty').value,
+      unit: document.getElementById('f_unit').value,
+      shipDate: document.getElementById('f_shipdate').value,
+      orderNo: document.getElementById('f_orderNo').value.trim(),
+      shipNo: document.getElementById('f_shipNo').value.trim(),
+      apNo: document.getElementById('f_apNo').value.trim(),
+      ...docFields,
+    });
+    toast('已更新', 'success');
+  } else {
+    molds.push({
+      id: nextId(), seq: molds.length + 1,
+      name, partNo, customer, amount,
+      qty: document.getElementById('f_qty').value,
+      unit: document.getElementById('f_unit').value,
+      shipDate: document.getElementById('f_shipdate').value,
+      orderNo: document.getElementById('f_orderNo').value.trim(),
+      shipNo: document.getElementById('f_shipNo').value.trim(),
+      apNo: document.getElementById('f_apNo').value.trim(),
+      history: [], contractNo: '',
+      ...docFields,
+    });
+    toast('已新增', 'success');
+  }
+  saveData(molds);
+  closeModal('addModal');
+  renderList();
+}
+function deleteMold(id) {
+  if (!confirm('確定刪除這筆模具？')) return;
+  molds = molds.filter(m => m.id !== id);
+  saveData(molds);
+  renderList();
+  toast('已刪除');
+}
+function clearAll() {
+  if (!confirm('確定清除所有模具資料？此動作無法復原。')) return;
+  molds = [];
+  saveData(molds);
+  renderList();
+  toast('已清除');
+}
+
+// ============================================================
+// IMPORT XLSX
+// ============================================================
+function importXlsx(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // Find header row
+      let headerIdx = -1;
+      rows.forEach((r, i) => {
+        if (String(r[0]).includes('序') || String(r[0]).includes('序号')) headerIdx = i;
+      });
+      if (headerIdx === -1) { toast('找不到標題列（序号）', 'error'); return; }
+      const data = rows.slice(headerIdx + 1).filter(r => r.some(c => c !== ''));
+      let added = 0;
+      data.forEach((r, i) => {
+        // columns: 序号,訂單單號,出貨單號,品名規格,産品料号,出貨數量,单位,出貨日期,客人,模具金額,實際分攤金額,差異,分攤日期,分攤合同號,應收憑單TIPTOP
+        const name = String(r[3] || '').trim();
+        const amount = parseFloat(r[9]) || 0;
+        if (!name || !amount) return;
+        molds.push({
+          id: nextId(), seq: molds.length + 1,
+          orderNo: String(r[1] || '').trim(),
+          shipNo: String(r[2] || '').trim(),
+          name,
+          partNo: String(r[4] || '').trim(),
+          qty: r[5] || 1,
+          unit: String(r[6] || 'PCS').trim(),
+          shipDate: fmtDate(r[7]),
+          customer: String(r[8] || '').trim(),
+          amount,
+          history: [],
+          contractNo: String(r[13] || '').trim(),
+          apNo: String(r[14] || '').trim(),
+        });
+        added++;
+      });
+      saveData(molds);
+      renderList();
+      toast(`匯入完成，新增 ${added} 筆`, 'success');
+    } catch(err) {
+      toast('匯入失敗：' + err.message, 'error');
+    }
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ============================================================
+// HISTORY MODAL
+// ============================================================
+function showHistory(id) {
+  const m = molds.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('historyModalTitle').textContent = `分攤歷史 — ${m.name}`;
+  const hist = m.history || [];
+  let html = `
+    <div class="info-row" style="margin-bottom:12px">
+      <strong>模具金額：</strong> RMB ${fmtNum(m.amount)}
+      <span class="sep">|</span>
+      <strong>已分攤：</strong> RMB ${fmtNum(allocatedTotal(m))}
+      <span class="sep">|</span>
+      <strong>差異：</strong> RMB ${fmtNum(diffAmount(m))}
+    </div>
+  `;
+  if (hist.length === 0) {
+    html += '<div class="text-muted">尚無分攤紀錄。</div>';
+  } else {
+    html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="background:#F1F4F8;padding:6px 10px;border-bottom:1px solid var(--border)">次數</th>
+        <th style="background:#F1F4F8;padding:6px 10px;border-bottom:1px solid var(--border)">分攤日期</th>
+        <th style="background:#F1F4F8;padding:6px 10px;border-bottom:1px solid var(--border)">合同號</th>
+        <th style="background:#F1F4F8;padding:6px 10px;border-bottom:1px solid var(--border);text-align:right">本次分攤金額</th>
+        <th style="background:#F1F4F8;padding:6px 10px;border-bottom:1px solid var(--border)">操作</th>
+      </tr></thead>
+      <tbody>
+        ${hist.map((h, i) => `<tr>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border)">${i+1}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border)">${h.date || ''}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border)">${h.contract || ''}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right;font-family:var(--mono)">RMB ${fmtNum(h.allocAmount)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border)">
+            <button class="btn btn-sm" style="color:var(--danger);border:1px solid var(--danger);background:#fff;cursor:pointer;font-size:11px" onclick="deleteHistEntry('${id}',${i})">刪除</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }
+  document.getElementById('historyModalBody').innerHTML = html;
+  document.getElementById('historyModal').classList.add('open');
+}
+function deleteHistEntry(moldId, idx) {
+  if (!confirm('確定刪除這筆分攤紀錄？')) return;
+  const m = molds.find(x => x.id === moldId);
+  m.history.splice(idx, 1);
+  saveData(molds);
+  showHistory(moldId);
+  renderList();
+  toast('已刪除分攤紀錄');
+}
+
+// ============================================================
+// PAGE 2: ALLOCATE
+// ============================================================
+let selectedAllocIds = new Set();
+
+function renderAllocList() {
+  const kw = document.getElementById('allocFilter').value.toLowerCase();
+  const onlyActive = document.getElementById('allocStatusFilter').value === 'active';
+  let rows = molds.filter(m => {
+    const st = getStatus(m);
+    if (onlyActive && st === '已結案') return false;
+    if (kw) {
+      const h = [m.name, m.partNo, m.customer].join(' ').toLowerCase();
+      if (!h.includes(kw)) return false;
+    }
+    return true;
+  });
+  const tbody = document.getElementById('allocTbody');
+  if (rows.length === 0) { tbody.innerHTML=''; document.getElementById('allocEmpty').style.display='block'; return; }
+  document.getElementById('allocEmpty').style.display = 'none';
+  tbody.innerHTML = rows.map(m => {
+    const st = getStatus(m);
+    const badgeCls = st==='未分攤'?'badge-none':st==='部分分攤'?'badge-partial':'badge-done';
+    const checked = selectedAllocIds.has(m.id);
+    const disabled = st === '已結案';
+    return `<tr style="${disabled?'opacity:0.5':''}">
+      <td class="tbl-center">
+        <input type="checkbox" ${checked?'checked':''} ${disabled?'disabled':''}
+          onchange="toggleAllocSel('${m.id}',this.checked)">
+      </td>
+      <td>${m.name}</td>
+      <td style="font-family:var(--mono)">${m.partNo}</td>
+      <td>${m.customer}</td>
+      <td>${m.shipDate || ''}</td>
+      <td class="tbl-number">${fmtNum(m.amount)}</td>
+      <td class="tbl-number" style="color:var(--success)">${fmtNum(allocatedTotal(m))}</td>
+      <td class="tbl-number" style="color:var(--danger)">${fmtNum(diffAmount(m))}</td>
+      <td><span class="badge ${badgeCls}">${st}</span></td>
+    </tr>`;
+  }).join('');
+  renderAllocForm();
+}
+
+function toggleAllocSel(id, checked) {
+  if (checked) selectedAllocIds.add(id);
+  else selectedAllocIds.delete(id);
+  renderAllocForm();
+}
+
+function renderAllocForm() {
+  const card = document.getElementById('allocFormCard');
+  if (selectedAllocIds.size === 0) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  document.getElementById('allocSelectedCount').textContent = `已選取 ${selectedAllocIds.size} 筆`;
+  const items = [...selectedAllocIds].map(id => {
+    const m = molds.find(x => x.id === id);
+    if (!m) return '';
+    return `<div style="border:1px solid var(--border);border-radius:4px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div style="font-weight:600;font-size:12px">${m.name}</div>
+        <div class="text-muted" style="font-size:11px">${m.partNo} | ${m.customer}</div>
+      </div>
+      <div style="font-size:11px">
+        模具金額：<strong>RMB ${fmtNum(m.amount)}</strong>　
+        剩餘差異：<strong style="color:var(--danger)">RMB ${fmtNum(diffAmount(m))}</strong>
+      </div>
+      <div class="form-group" style="min-width:160px">
+        <label>本次分攤金額 (RMB) *</label>
+        <input class="inline-input" type="number" id="alloc_amt_${m.id}"
+          placeholder="${fmtNum(diffAmount(m))}" max="${diffAmount(m)}">
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('allocFormItems').innerHTML = items;
+  document.getElementById('allocDate').value = today();
+}
+
+function saveAlloc() {
+  const date = document.getElementById('allocDate').value;
+  const contract = document.getElementById('allocContract').value.trim();
+  if (!date) { toast('請填寫分攤日期', 'error'); return; }
+  let ok = true;
+  selectedAllocIds.forEach(id => {
+    const m = molds.find(x => x.id === id);
+    const amt = parseFloat(document.getElementById('alloc_amt_'+id)?.value);
+    if (isNaN(amt) || amt <= 0) { toast(`請填寫「${m.name}」的本次分攤金額`, 'error'); ok=false; return; }
+    if (amt > diffAmount(m) + 0.01) { toast(`「${m.name}」分攤金額超過剩餘差異`, 'error'); ok=false; return; }
+    m.history.push({ date, contract, allocAmount: amt });
+    m.contractNo = contract || m.contractNo;
+  });
+  if (!ok) return;
+  saveData(molds);
+  toast(`分攤完成，共 ${selectedAllocIds.size} 筆`, 'success');
+  clearAllocSelection();
+  renderAllocList();
+}
+
+function clearAllocSelection() {
+  selectedAllocIds.clear();
+  document.querySelectorAll('#allocTbody input[type=checkbox]').forEach(c => c.checked = false);
+  document.getElementById('allocFormCard').style.display = 'none';
+}
+
+// ============================================================
+// PAGE 3: DOCS
+// ============================================================
+let selectedDocItems = []; // {moldId, histIdx}
+
+function getAllHistoryItems() {
+  const items = [];
+  molds.forEach(m => {
+    (m.history || []).forEach((h, idx) => {
+      items.push({ moldId: m.id, histIdx: idx, mold: m, hist: h });
+    });
+  });
+  return items.sort((a, b) => (a.hist.date || '').localeCompare(b.hist.date || ''));
+}
+
+function renderDocList() {
+  populateMonthFilter('docMonthFilter');
+  const kw = document.getElementById('docFilter').value.toLowerCase();
+  const mo = document.getElementById('docMonthFilter').value;
+  const allItems = getAllHistoryItems().filter(it => {
+    if (mo && !(it.hist.date || '').startsWith(mo)) return false;
+    if (kw) {
+      const h = [it.mold.name, it.mold.partNo, it.mold.customer, it.hist.contract].join(' ').toLowerCase();
+      if (!h.includes(kw)) return false;
+    }
+    return true;
+  });
+  const tbody = document.getElementById('docTbody');
+  if (allItems.length === 0) { tbody.innerHTML=''; document.getElementById('docEmpty').style.display='block'; return; }
+  document.getElementById('docEmpty').style.display='none';
+  tbody.innerHTML = allItems.map(it => {
+    const key = it.moldId + '_' + it.histIdx;
+    const checked = selectedDocItems.some(s => s.moldId===it.moldId && s.histIdx===it.histIdx);
+    return `<tr>
+      <td class="tbl-center"><input type="checkbox" ${checked?'checked':''} onchange="toggleDocSel('${it.moldId}',${it.histIdx},this.checked)"></td>
+      <td>${it.hist.date || ''}</td>
+      <td style="max-width:200px">${it.mold.name}</td>
+      <td style="font-family:var(--mono)">${it.mold.partNo}</td>
+      <td>${it.mold.customer}</td>
+      <td class="tbl-number">RMB ${fmtNum(it.hist.allocAmount)}</td>
+      <td>${it.hist.contract || ''}</td>
+      <td>${it.mold.shipNo || ''}</td>
+      <td style="font-family:var(--mono);font-size:11px">${it.mold.apNo || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleDocSel(moldId, histIdx, checked) {
+  if (checked) {
+    if (!selectedDocItems.some(s => s.moldId===moldId && s.histIdx===histIdx))
+      selectedDocItems.push({moldId, histIdx});
+  } else {
+    selectedDocItems = selectedDocItems.filter(s => !(s.moldId===moldId && s.histIdx===histIdx));
+  }
+}
+
+function selectAllDocs() {
+  const kw = document.getElementById('docFilter').value.toLowerCase();
+  const mo = document.getElementById('docMonthFilter').value;
+  getAllHistoryItems().forEach(it => {
+    if (mo && !(it.hist.date||'').startsWith(mo)) return;
+    if (kw) {
+      const h = [it.mold.name, it.mold.partNo, it.mold.customer, it.hist.contract].join(' ').toLowerCase();
+      if (!h.includes(kw)) return;
+    }
+    if (!selectedDocItems.some(s=>s.moldId===it.moldId&&s.histIdx===it.histIdx))
+      selectedDocItems.push({moldId:it.moldId, histIdx:it.histIdx});
+  });
+  renderDocList();
+}
+function clearDocSel() { selectedDocItems=[]; renderDocList(); }
+
+function getSelectedItems() {
+  return selectedDocItems.map(s => {
+    const m = molds.find(x=>x.id===s.moldId);
+    return { mold: m, hist: m.history[s.histIdx] };
+  }).filter(x=>x.mold&&x.hist);
+}
+
+function previewDoc(type) {
+  const items = getSelectedItems();
+  if (items.length === 0) { toast('請先選取分攤紀錄', 'error'); return; }
+  let html = '';
+  const batchDate = items[0].hist.date || today();
+  const totalAmt = items.reduce((s,it)=>s+(parseFloat(it.hist.allocAmount)||0),0);
+
+  if (type === 'invoice') {
+    // 按「應收憑單號」分組，同單號合併成一張 INVOICE
+    const groups = {};
+    items.forEach(it => {
+      const key = it.mold.apNo || '（無應收憑單）';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(it);
+    });
+
+    const invoicePages = Object.entries(groups).map(([apNo, groupItems]) => {
+      const groupDate = groupItems[0].hist.date || today();
+      const groupTotal = groupItems.reduce((s,it)=>s+(parseFloat(it.hist.allocAmount)||0),0);
+
+      // INVOICE NO：應收憑單號 + 分攤次數後綴（只在多次分攤時加）
+      function getInvNoForItem(it) {
+        const m = molds.find(x => x.id === it.mold.id);
+        const totalHist = m ? (m.history || []).length : 1;
+        const sel = selectedDocItems.find(s => s.moldId === it.mold.id);
+        const histIdx = sel ? sel.histIdx : 0;
+        if (totalHist <= 1) return apNo;
+        return `${apNo}-${histIdx + 1}`;
+      }
+      // 同一 apNo 分組內取第一筆的 INVOICE NO
+      const invNo = getInvNoForItem(groupItems[0]);
+
+      return `<div class="print-doc" style="page-break-after:always">
+      <h2>INVOICE</h2>
+      <div class="doc-company">東莞恒群塑膠有限公司</div>
+      <div style="text-align:center;font-size:11px;color:#555">
+        Room 501, Building 1, No. 2 Anyue Road, Chashan Town, Dongguan City, Guangdong Province, China<br>
+        Tel：86-769-23064133　Fax：86-769-22617235
+      </div>
+      <div class="doc-info" style="margin-top:14px">
+        <div><strong>INVOICE NO.：</strong>${invNo}</div>
+        <div><strong>Ship Date：</strong>${(groupDate||'').replace(/-/g,'').slice(2)}</div>
+        <div><strong>TERM：</strong>T/T NET 60DAYS</div>
+        <div><strong>Bill To：</strong>COMART CORPORATION</div>
+        <div style="grid-column:1/-1;font-size:11px;color:#555">3F, No 12, Lane235, Baociao Rd., Sindian City, Taipei 231, Taiwan, R.O.C.　Tel:886-2-89111133</div>
+      </div>
+      <table class="invoice-table">
+        <thead><tr>
+          <th>ITEM</th><th>DESCRIPTION</th><th>QTY</th><th>UNIT PRICE (RMB)</th><th>AMOUNT (RMB)</th>
+        </tr></thead>
+        <tbody>
+          ${groupItems.map((it,i)=>{
+            const qty = parseFloat(it.mold.qty) || 1;
+            const unitPrice = (parseFloat(it.hist.allocAmount) || 0) / qty;
+            return `<tr>
+            <td>${i+1}</td>
+            <td>${it.mold.name}</td>
+            <td style="text-align:center">${qty} ${it.mold.unit||'PCS'}</td>
+            <td style="text-align:right">${fmtNum(unitPrice)}</td>
+            <td style="text-align:right">${fmtNum(it.hist.allocAmount)}</td>
+          </tr>`;}).join('')}
+          <tr class="total-row">
+            <td colspan="3" style="text-align:right">TOTAL</td>
+            <td>RMB</td>
+            <td style="text-align:right">${fmtNum(groupTotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px;font-size:11px">COUNTRY OF ORIGIN：CHINA</div>
+      <div class="signature">東莞恒群塑膠有限公司<br><br>_____________________________________<br>Authorized Signature</div>
+    </div>`;
+    });
+
+    const groupCount = Object.keys(groups).length;
+    html = invoicePages.join('');
+    document.getElementById('docModalTitle').textContent = `INVOICE 預覽（共 ${groupCount} 張）`;
+  }
+
+  if (type === 'inbound') {
+    const shared_docNo      = document.getElementById('shared_docNo').value;
+    const shared_recNo      = document.getElementById('shared_recNo').value;
+    const groups = {};
+    items.forEach(it => {
+      const key = it.mold.apNo || '（無應收憑單）';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(it);
+    });
+    const pages = Object.entries(groups).map(([apNo, groupItems]) => {
+      const groupDate = groupItems[0].hist.date || today();
+      const m0 = groupItems[0].mold;
+      const docNo      = m0.inboundNo  || '';
+      const recNo      = m0.recNo      || shared_recNo;
+
+      return `<div class="print-doc" style="font-size:11px;page-break-after:always">
+      <div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:2px">怡業股份有限公司</div>
+      <div style="text-align:center;font-weight:bold;font-size:13px;margin-bottom:10px">採購入庫單</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:11px">
+        <tr>
+          <td style="width:15%">製表日期：</td><td style="width:20%">${today()}</td>
+          <td style="width:10%"></td><td style="width:10%"></td>
+          <td style="width:15%;text-align:right">製表者：</td><td style="width:15%">廖淑婷</td>
+          <td style="width:8%;text-align:right">頁次：</td><td>1/1</td>
+        </tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:4px;font-size:11px">
+        <tr>
+          <td style="width:15%">單據編號：</td>
+          <td style="width:30%"><input class="doc-input" value="${docNo}" placeholder="手動填入" style="width:180px"></td>
+          <td style="width:15%">廠商簡稱：</td><td>PTY0002 東莞恆群</td>
+        </tr>
+        <tr><td>單據日期：</td><td>${groupDate}</td><td>採購性質：</td><td>TRI 多角貿易</td></tr>
+        <tr>
+          <td>收貨單號：</td>
+          <td><input class="doc-input" value="${recNo}" placeholder="手動填入" style="width:180px"></td>
+          <td>人員：</td><td>tiptop</td>
+        </tr>
+        <tr><td>部　　門：</td><td>C81300 代-業務部</td><td>應收憑單：</td><td>${apNo}</td></tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #000;margin-top:8px;font-size:11px">
+        <thead><tr style="background:#f0f0f0">
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center">項次</th>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center">收貨項</th>
+          <th style="border:1px solid #000;padding:4px 6px">料件編號<br><span style="font-weight:normal">品名/規格</span></th>
+          <th style="border:1px solid #000;padding:4px 6px">採購單號</th>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center">項次</th>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center">倉庫/儲位</th>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:right">異動數量</th>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center">單位</th>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center">樣品</th>
+        </tr></thead>
+        <tbody>
+          ${groupItems.map((it,i)=>`
+          <tr>
+            <td style="border:1px solid #000;padding:4px 6px;text-align:center">${i+1}</td>
+            <td style="border:1px solid #000;padding:4px 6px;text-align:center">1</td>
+            <td style="border:1px solid #000;padding:4px 6px">${it.mold.partNo||''}<br><span style="font-size:10px">${it.mold.name}</span></td>
+            <td style="border:1px solid #000;padding:4px 6px"><input class="doc-input" value="${it.mold.orderNo || ''}" placeholder="手動填入" style="width:150px"></td>
+            <td style="border:1px solid #000;padding:4px 6px;text-align:center">${i+1}</td>
+            <td style="border:1px solid #000;padding:4px 6px;text-align:center">(P002//)</td>
+            <td style="border:1px solid #000;padding:4px 6px;text-align:right">${it.mold.qty||1}</td>
+            <td style="border:1px solid #000;padding:4px 6px;text-align:center">${it.mold.unit||'PCS'}</td>
+            <td style="border:1px solid #000;padding:4px 6px;text-align:center">N</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:6px;font-size:10px;color:#555">(apmr630)<span style="float:right">(結束)</span></div>
+      <div style="margin-top:16px;font-size:11px">倉庫人員：____________　主管：____________</div>
+    </div>`;
+    });
+    html = pages.join('');
+    document.getElementById('docModalTitle').textContent = `採購入庫單預覽（共 ${Object.keys(groups).length} 張）`;
+  }
+
+  if (type === 'purchase') {
+    const shared_apNo       = document.getElementById('shared_apNo').value;
+    const shared_inboundNo  = document.getElementById('shared_inboundNo').value;
+    const shared_voucherNo  = document.getElementById('shared_voucherNo').value;
+    const shared_invoiceNo  = document.getElementById('shared_invoiceNo').value;
+    const shared_rate       = parseFloat(document.getElementById('shared_rate').value) || 0;
+
+    // 按應收憑單號分組
+    const groups = {};
+    items.forEach(it => {
+      const key = it.mold.apNo || '（無應收憑單）';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(it);
+    });
+
+    const pages = Object.entries(groups).map(([apNo, groupItems]) => {
+      const groupDate = groupItems[0].hist.date || today();
+      const groupTotal = groupItems.reduce((s,it)=>s+(parseFloat(it.hist.allocAmount)||0),0);
+      const groupTotalFmt = fmtNum(groupTotal);
+      // 從該組第一筆模具帶入，共用欄補充
+      const m0 = groupItems[0].mold;
+      const apAccNo    = m0.apAccNo    || shared_apNo;
+      const inboundNo  = m0.inboundNo  || shared_inboundNo;
+      const voucherNo  = m0.voucherNo  || shared_voucherNo;
+      const invoiceNo  = m0.invoiceNo  || shared_invoiceNo;
+      const rate       = parseFloat(m0.rate) || shared_rate;
+      const rateDisplay = rate > 0 ? rate : '';
+      const groupTwd = rate > 0 ? fmtNum(groupTotal * rate) : '—';
+
+      return `<div class="print-doc" style="font-size:11px;page-break-after:always">
+      <div style="text-align:center;font-weight:bold;font-size:14px;margin-bottom:2px">怡業股份有限公司</div>
+      <div style="text-align:center;font-weight:bold;font-size:13px;margin-bottom:10px">應付憑單列印 - 進項發票</div>
+      <!-- 製表資訊列 -->
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;border-bottom:1px solid #ccc;padding-bottom:4px">
+        <span>製表日期：${today()}</span>
+        <span>製表者：廖淑婷</span>
+        <span>頁次：1/1</span>
+      </div>
+      <!-- 標頭兩欄區 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px;font-size:11px;margin-bottom:8px">
+        <!-- 左欄 -->
+        <div>
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <tr><td style="border:none;padding:2px 0;width:90px;white-space:nowrap;color:#555">帳款編號：</td><td style="border:none;padding:2px 0"><input class="doc-input" value="${apAccNo}" placeholder="手動填入" style="width:160px"></td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">帳款日期：</td><td style="border:none;padding:2px 0">${groupDate}</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">送貨廠商：</td><td style="border:none;padding:2px 0">PTY0002 東莞恆群</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">付款廠商：</td><td style="border:none;padding:2px 0">PTY0002</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">廠商簡稱：</td><td style="border:none;padding:2px 0">東莞恆群</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">發票號碼：</td><td style="border:none;padding:2px 0"><input class="doc-input" value="${invoiceNo}" placeholder="手動填入" style="width:160px"></td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">發票日期：</td><td style="border:none;padding:2px 0">${groupDate}</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">付款方式：</td><td style="border:none;padding:2px 0">AP60-TT_月結2個月 匯款</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">應付款日：</td><td style="border:none;padding:2px 0"></td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">備　　註：</td><td style="border:none;padding:2px 0"></td></tr>
+          </table>
+        </div>
+        <!-- 右欄 -->
+        <div>
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <tr>
+              <td style="border:none;padding:2px 0;width:70px;white-space:nowrap;color:#555">幣　　別：</td><td style="border:none;padding:2px 0;width:50px">CNY</td>
+              <td style="border:none;padding:2px 0;width:50px;color:#555">匯率：</td><td style="border:none;padding:2px 0;width:50px"><strong>${rateDisplay}</strong></td>
+              <td style="border:none;padding:2px 0;width:60px;color:#555">傳票編號：</td><td style="border:none;padding:2px 0"><input class="doc-input" value="${voucherNo}" placeholder="手動填入" style="width:100px"></td>
+            </tr>
+            <tr>
+              <td style="border:none;padding:2px 0;color:#555">稅　　別：</td><td style="border:none;padding:2px 0">29</td>
+              <td style="border:none;padding:2px 0;color:#555">稅率：</td><td style="border:none;padding:2px 0">0 %</td>
+              <td style="border:none;padding:2px 0;color:#555">帳款類別：</td><td style="border:none;padding:2px 0">2181 應付帳款-關係人</td>
+            </tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">扣抵區分：</td><td style="border:none;padding:2px 0">3</td><td style="border:none;padding:2px 0;color:#555">格式：</td><td style="border:none;padding:2px 0">XX</td><td colspan="2" style="border:none"></td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">帳款人員：</td><td style="border:none;padding:2px 0" colspan="3">C00009 Emily Hou</td><td colspan="2" style="border:none"></td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">帳款部門：</td><td style="border:none;padding:2px 0" colspan="3">C81300 代-業務部</td><td colspan="2" style="border:none"></td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555">票期天數：</td><td style="border:none;padding:2px 0" colspan="3">0 天</td><td colspan="2" style="border:none"></td></tr>
+            <!-- 金額欄 -->
+            <tr style="border-top:1px solid #ddd">
+              <td style="border:none;padding:3px 0;color:#555" colspan="4">貨款：</td>
+              <td style="border:none;padding:3px 0;text-align:right;font-family:monospace">${groupTotalFmt}</td>
+              <td style="border:none;padding:3px 0;text-align:right;font-family:monospace;color:#555">${groupTwd}</td>
+            </tr>
+            <tr><td style="border:none;padding:2px 0;color:#555" colspan="4">稅額：</td><td style="border:none;text-align:right;font-family:monospace">0</td><td style="border:none;text-align:right;font-family:monospace;color:#555">0</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555" colspan="4">沖帳：</td><td style="border:none;text-align:right;font-family:monospace">0</td><td style="border:none;text-align:right;font-family:monospace;color:#555">0</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555" colspan="4">折讓：</td><td style="border:none;text-align:right;font-family:monospace">0</td><td style="border:none;text-align:right;font-family:monospace;color:#555">0</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555" colspan="4">應付：</td><td style="border:none;text-align:right;font-family:monospace">${groupTotalFmt}</td><td style="border:none;text-align:right;font-family:monospace;color:#555">${groupTwd}</td></tr>
+            <tr><td style="border:none;padding:2px 0;color:#555" colspan="4">已付：</td><td style="border:none;text-align:right;font-family:monospace">0</td><td style="border:none;text-align:right;font-family:monospace;color:#555">0</td></tr>
+            <tr style="font-weight:bold"><td style="border:none;padding:2px 0;color:#555" colspan="4">未付：</td><td style="border:none;text-align:right;font-family:monospace">${groupTotalFmt}</td><td style="border:none;text-align:right;font-family:monospace;color:#555">${groupTwd}</td></tr>
+          </table>
+        </div>
+      </div>
+      <table class="detail-table" style="width:100%;border-collapse:collapse;margin-top:8px;font-size:11px">
+        <thead><tr style="background:#f0f0f0">
+          <th>項次</th><th>收貨營運中心</th>
+          <th>入庫單號<br><span style="font-weight:normal">採購單號</span></th>
+          <th>入庫幣別<br><span style="font-weight:normal">採購幣別</span></th>
+          <th style="text-align:right">原幣單價<br><span style="font-weight:normal">本幣單價</span></th>
+          <th style="text-align:right">數　量</th>
+          <th style="text-align:right">原幣金額<br><span style="font-weight:normal">本幣金額</span></th>
+        </tr></thead>
+        <tbody>
+          ${groupItems.map((it,i)=>{
+            const qty = parseFloat(it.mold.qty)||1;
+            const origAmt = parseFloat(it.hist.allocAmount)||0;
+            const origUnit = origAmt / qty;
+            const twdAmt = rate > 0 ? fmtNum(origAmt * rate) : '—';
+            const twdUnit = rate > 0 ? fmtNum(origUnit * rate) : '—';
+            return `<tr>
+              <td rowspan="2" style="text-align:center">${i+1}</td>
+              <td rowspan="2">C81300</td>
+              <td><input class="doc-input" value="${inboundNo}" placeholder="入庫單號" style="width:150px"></td>
+              <td>CNY</td>
+              <td style="text-align:right">${fmtNum(origUnit)}</td>
+              <td rowspan="2" style="text-align:right">${qty}</td>
+              <td rowspan="2" style="text-align:right">${fmtNum(origAmt)}<br><span style="color:#555">${twdAmt}</span></td>
+            </tr>
+            <tr>
+              <td><input class="doc-input" value="${it.mold.orderNo || ''}" placeholder="採購單號" style="width:150px"></td>
+              <td>TWD</td>
+              <td style="text-align:right">${twdUnit}</td>
+            </tr>`;
+          }).join('')}
+          <tr>
+            <td colspan="5" style="text-align:right">合計：</td>
+            <td style="text-align:right"></td>
+            <td style="text-align:right;font-weight:bold">${groupTotalFmt}<br><span style="color:#555">${groupTwd}</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:32px;font-size:11px">採購人員：____________　採購主管：____________　會計：____________</div>
+      <div style="margin-top:4px;font-size:10px;color:#555;display:flex;justify-content:space-between"><span>(aapr111)</span><span>(結束)</span></div>
+    </div>`;
+    });
+
+    html = pages.join('');
+    document.getElementById('docModalTitle').textContent = `進貨單預覽（共 ${Object.keys(groups).length} 張）`;
+  }
+
+  document.getElementById('docModalBody').innerHTML = html;
+  document.getElementById('docModal').classList.add('open');
+}
+
+function printModal() {
+  // 列印前把 doc-input 的值固化為可見文字，避免 input value 不印出來
+  const modalBody = document.getElementById('docModalBody');
+  const inputs = modalBody.querySelectorAll('input.doc-input');
+  // 暫存原始 input，換成 span
+  const replacements = [];
+  inputs.forEach(inp => {
+    const span = document.createElement('span');
+    const w = inp.style.width || '120px';
+    span.style.cssText = `display:inline-block;min-width:${w};padding:0 4px;font-family:inherit;font-size:inherit;vertical-align:bottom`;
+    span.textContent = inp.value || '\u00A0';
+    inp.parentNode.replaceChild(span, inp);
+    replacements.push({ span, inp });
+  });
+
+  const content = modalBody.innerHTML;
+
+  // 列印後還原 input
+  replacements.forEach(({ span, inp }) => {
+    span.parentNode.replaceChild(inp, span);
+  });
+
+  const win = window.open('', '_blank');
+  win.document.write(`<html><head><title>列印</title>
+  <style>
+    body { font-family: 'Microsoft JhengHei', 'Times New Roman', serif; font-size: 11px; margin: 16px; }
+    table { width:100%; border-collapse:collapse; }
+    /* 預設無框線（進貨單標頭用） */
+    td, th { border:none; padding:3px 6px; font-size:11px; }
+    /* 進貨單明細表格 */
+    .detail-table td, .detail-table th { border:1px solid #000; padding:3px 6px; font-size:11px; }
+    .detail-table th { background:#f0f0f0; font-weight:bold; }
+    /* INVOICE 表格恢復框線 */
+    .invoice-table td, .invoice-table th { border:1px solid #000; padding:5px 8px; font-size:11px; }
+    .invoice-table th { background:#f0f0f0; font-weight:bold; }
+    /* INVOICE doc-info grid */
+    .doc-info { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:12px 0; font-size:12px; }
+    .doc-company { text-align:center; font-size:13px; margin-bottom:4px; }
+    div[style*="grid-template-columns"] { display:grid !important; }
+    h2 { text-align:center; }
+    .total-row { font-weight:bold; }
+    .signature { margin-top:24px; }
+    .page-break { page-break-after:always; }
+    span[style*="border-bottom"] { display:inline-block; min-width:80px; padding:0 4px; }
+  </style></head><body>${content}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 400);
+}
+
+// ============================================================
+// PAGE 4: EXPORT
+// ============================================================
+function populateExportMonth() {
+  const sel = document.getElementById('exportMonth');
+  const months = getMonths();
+  if (!sel.value && months.length > 0) sel.value = months[0];
+}
+
+function renderExportPreview() {
+  const mo = document.getElementById('exportMonth').value;
+  if (!mo) return;
+  const allItems = getAllHistoryItems().filter(it => (it.hist.date||'').startsWith(mo));
+  const card = document.getElementById('exportPreviewCard');
+  if (allItems.length === 0) { card.style.display='none'; return; }
+  card.style.display = 'block';
+  const total = allItems.reduce((s,it)=>s+(parseFloat(it.hist.allocAmount)||0),0);
+  document.getElementById('exportPreviewBody').innerHTML = `
+    <table style="margin:0">
+      <thead><tr>
+        <th>序號</th><th>訂單單號</th><th>出貨單號</th><th>品名規格</th><th>料號</th>
+        <th>數量</th><th>單位</th><th>出貨日期</th><th>客人</th>
+        <th class="tbl-number">模具金額(RMB)</th><th class="tbl-number">實際分攤金額(RMB)</th>
+        <th class="tbl-number">差異</th><th>分攤日期</th><th>分攤合同號</th><th>應收憑單</th>
+      </tr></thead>
+      <tbody>
+        ${allItems.map((it,i)=>`<tr>
+          <td>${i+1}</td>
+          <td>${it.mold.orderNo||''}</td>
+          <td>${it.mold.shipNo||''}</td>
+          <td>${it.mold.name}</td>
+          <td>${it.mold.partNo||''}</td>
+          <td class="tbl-center">${it.mold.qty||''}</td>
+          <td>${it.mold.unit||''}</td>
+          <td>${it.mold.shipDate||''}</td>
+          <td>${it.mold.customer||''}</td>
+          <td class="tbl-number">${fmtNum(it.mold.amount)}</td>
+          <td class="tbl-number">${fmtNum(it.hist.allocAmount)}</td>
+          <td class="tbl-number">${fmtNum((it.mold.amount||0)-(it.hist.allocAmount||0))}</td>
+          <td>${it.hist.date||''}</td>
+          <td>${it.hist.contract||''}</td>
+          <td>${it.mold.apNo||''}</td>
+        </tr>`).join('')}
+        <tr style="font-weight:700;background:#F1F4F8">
+          <td colspan="10" style="text-align:right">當月合計</td>
+          <td class="tbl-number">RMB ${fmtNum(total)}</td>
+          <td colspan="4"></td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+document.getElementById('exportMonth').addEventListener('change', renderExportPreview);
+
+function exportAccounting() {
+  const mo = document.getElementById('exportMonth').value;
+  if (!mo) { toast('請選取月份', 'error'); return; }
+  const allItems = getAllHistoryItems().filter(it => (it.hist.date||'').startsWith(mo));
+  if (allItems.length === 0) { toast('該月份無分攤紀錄', 'error'); return; }
+  const total = allItems.reduce((s,it)=>s+(parseFloat(it.hist.allocAmount)||0),0);
+
+  const wsData = [
+    ['序號','訂單單號','出貨單號','品名規格','料號','數量','單位','出貨日期','客人',
+     '模具金額(RMB)','實際分攤金額(RMB)','差異','分攤日期','分攤合同號','應收憑單TIPTOP'],
+    ...allItems.map((it,i) => [
+      i+1, it.mold.orderNo||'', it.mold.shipNo||'', it.mold.name, it.mold.partNo||'',
+      it.mold.qty||'', it.mold.unit||'', it.mold.shipDate||'', it.mold.customer||'',
+      it.mold.amount||0, it.hist.allocAmount||0,
+      (it.mold.amount||0)-(it.hist.allocAmount||0),
+      it.hist.date||'', it.hist.contract||'', it.mold.apNo||''
+    ]),
+    ['','','','','','','','','當月合計','',total,'','','',''],
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  // Column widths
+  ws['!cols'] = [6,18,18,30,14,6,6,12,20,14,14,12,12,16,18].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws, `模具分攤_${mo}`);
+  XLSX.writeFile(wb, `模具分攤明細_${mo}.xlsx`);
+  toast('匯出成功', 'success');
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open'); });
+});
+
+// ============================================================
+// INIT
+// ============================================================
+document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-TW', { year:'numeric',month:'long',day:'numeric',weekday:'short' });
+renderStats();
+renderList();
+</script>
+</body>
+</html>
