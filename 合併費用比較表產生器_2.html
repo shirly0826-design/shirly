@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>合併費用比較表 產生器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#f5f6f8;--surface:#fff;--border:#dde1e7;
+  --accent:#1a5f9e;--accent-light:#e8f0fb;
+  --success:#1a7a4a;--success-light:#e6f4ed;
+  --warn:#b45309;--warn-light:#fef3c7;
+  --error:#b91c1c;--error-light:#fee2e2;
+  --text:#1a1d23;--text-2:#5a6070;
+  --radius:8px;--shadow:0 1px 4px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--accent);color:#fff;padding:18px 32px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 8px rgba(26,95,158,.18)}
+header h1{font-size:17px;font-weight:700}
+header .sub{font-size:12px;opacity:.75;margin-top:2px}
+.container{max-width:900px;margin:28px auto;padding:0 20px 60px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+.card-header{background:#f8f9fb;border-bottom:1px solid var(--border);padding:12px 18px;font-weight:600;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-body{padding:18px}
+/* Template manager */
+.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+.tpl-card{border:2px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:.15s;position:relative;background:#fafbfc}
+.tpl-card:hover{border-color:var(--accent);background:var(--accent-light)}
+.tpl-card.selected{border-color:var(--accent);background:var(--accent-light);box-shadow:0 0 0 3px rgba(26,95,158,.15)}
+.tpl-card .tpl-name{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:4px;word-break:break-all}
+.tpl-card .tpl-sheets{font-size:10.5px;color:var(--text-2);line-height:1.5}
+.tpl-card .tpl-del{position:absolute;top:6px;right:8px;background:none;border:none;cursor:pointer;color:#bbb;font-size:14px;padding:0}
+.tpl-card .tpl-del:hover{color:var(--error)}
+.tpl-add-btn{border:2px dashed var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:.15s;background:#fafbfc;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:var(--text-2);position:relative}
+.tpl-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+.tpl-add-btn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.tpl-none{font-size:12px;color:var(--text-2);padding:8px 0}
+/* Upload */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:24px 20px;text-align:center;cursor:pointer;transition:.2s;background:#fafbfc;position:relative}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:var(--accent-light)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.uz-icon{font-size:28px;margin-bottom:6px}
+.uz-text{font-size:13px;color:var(--text-2)}
+.uz-hint{font-size:11px;color:#9aa0aa;margin-top:3px}
+/* File list */
+.file-list{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.file-item{border:1px solid var(--border);border-radius:var(--radius);background:#fafbfc;overflow:hidden}
+.file-item-header{display:flex;align-items:center;padding:9px 13px;gap:9px}
+.status-icon{font-size:14px;min-width:18px;text-align:center}
+.file-name{font-size:12px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-size{font-size:10.5px;color:var(--text-2);white-space:nowrap}
+.file-remove{background:none;border:none;cursor:pointer;color:#aaa;font-size:15px;padding:0 3px}
+.file-remove:hover{color:var(--error)}
+.file-item-body{padding:7px 13px 10px;border-top:1px solid var(--border)}
+.match-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.match-ok{background:var(--success-light);color:var(--success);border:1px solid #9fd3b4}
+.match-warn{background:var(--warn-light);color:var(--warn);border:1px solid #fcd34d}
+.match-err{background:var(--error-light);color:var(--error);border:1px solid #fca5a5}
+.match-pending{background:#f1f3f5;color:var(--text-2);border:1px solid var(--border)}
+/* Actions */
+.action-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{padding:9px 20px;border-radius:var(--radius);border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg)}
+#pyodide-status{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px;margin-bottom:12px}
+#progress-area{display:none;margin-top:12px}
+.progress-bar-wrap{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:5px}
+.progress-bar{height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
+.progress-text{font-size:11px;color:var(--text-2)}
+#log-area{display:none;margin-top:12px}
+.log-box{background:#f8f9fb;border:1px solid var(--border);border-radius:var(--radius);padding:10px 13px;font-size:11.5px;font-family:Consolas,monospace;max-height:200px;overflow-y:auto;line-height:1.7}
+.log-ok{color:var(--success)}.log-warn{color:var(--warn)}.log-err{color:var(--error)}.log-info{color:var(--text-2)}
+#result-area{display:none}
+.result-card{background:var(--success-light);border:1px solid #9fd3b4;border-radius:var(--radius);padding:15px 18px;display:flex;align-items:center;gap:12px}
+.result-info{flex:1}
+.result-title{font-size:14px;font-weight:700;color:var(--success)}
+.result-sub{font-size:11.5px;color:#3a7a5a;margin-top:2px}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--accent);color:#fff;vertical-align:middle}
+.spinner{display:inline-block;width:11px;height:11px;border:2px solid rgba(26,95,158,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.instructions{background:var(--accent-light);border-left:3px solid var(--accent);border-radius:0 var(--radius) var(--radius) 0;padding:11px 15px;font-size:11.5px;color:var(--text-2);line-height:1.9}
+.instructions b{color:var(--text)}
+.selected-tpl-bar{background:var(--accent-light);border:1px solid #b8d0f0;border-radius:var(--radius);padding:9px 14px;font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.selected-tpl-bar .stb-name{font-weight:700;color:var(--accent);flex:1}
+</style>
+</head>
+<body>
+<header>
+  <div style="font-size:22px">📊</div>
+  <div>
+    <div style="font-size:17px;font-weight:700">合併費用比較表 產生器</div>
+    <div class="sub">怡業股份有限公司 ｜ openpyxl 後端，格式完整保留</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- 說明 -->
+  <div class="card">
+    <div class="card-header">📋 使用說明</div>
+    <div class="card-body">
+      <div class="instructions">
+        <b>Step 1</b>｜在「範本管理」上傳並儲存你的範本檔（可存多個，下次開啟仍在）<br>
+        <b>Step 2</b>｜點選本次要用的範本<br>
+        <b>Step 3</b>｜上傳來源檔（自動依「報表結構:」代碼對應工作表）<br>
+        <b>Step 4</b>｜產生 → 下載（檔名日期自動抓資料期間）
+      </div>
+    </div>
+  </div>
+
+  <!-- 範本管理 -->
+  <div class="card">
+    <div class="card-header">
+      📁 Step 1 & 2 — 範本管理
+      <span class="badge" id="tpl-count-badge">0 個</span>
+    </div>
+    <div class="card-body">
+      <div id="tpl-grid" class="tpl-grid"></div>
+      <div class="tpl-add-btn" id="tpl-add-btn">
+        <input type="file" id="tpl-file-input" accept=".xlsx">
+        ➕ 新增範本
+      </div>
+      <div id="tpl-none" class="tpl-none" style="display:none">尚無範本，請點上方新增</div>
+    </div>
+  </div>
+
+  <!-- 上傳來源 -->
+  <div class="card">
+    <div class="card-header">
+      📂 Step 3 — 上傳來源檔
+      <span class="badge" id="file-count-badge">0 / 5</span>
+    </div>
+    <div class="card-body">
+      <div id="pyodide-status"><span class="spinner"></span> Python 環境載入中…</div>
+      <div id="selected-tpl-bar" class="selected-tpl-bar" style="display:none">
+        <span>📄 已選範本：</span>
+        <span class="stb-name" id="selected-tpl-name">—</span>
+        <span id="selected-tpl-sheets" style="font-size:11px;color:var(--text-2)"></span>
+      </div>
+      <div class="upload-zone" id="upload-zone" style="pointer-events:none;opacity:.5">
+        <input type="file" id="file-input" accept=".xls,.xlsx" multiple disabled>
+        <div class="uz-icon">📁</div>
+        <div class="uz-text">點擊選檔或拖放 .xls / .xlsx（任何 ERP 匯出檔）</div>
+        <div class="uz-hint">最多 5 個</div>
+      </div>
+      <div class="file-list" id="file-list"></div>
+    </div>
+  </div>
+
+  <!-- 產生 -->
+  <div class="card">
+    <div class="card-header">⚙️ Step 4 — 產生報表</div>
+    <div class="card-body">
+      <div class="action-row">
+        <button class="btn btn-primary" id="generate-btn" disabled onclick="generate()">▶ 產生報表</button>
+        <button class="btn btn-ghost" onclick="resetAll()">重設</button>
+        <span id="check-msg" style="font-size:12px;color:var(--text-2)"></span>
+      </div>
+      <div id="progress-area">
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+        <div class="progress-text" id="progress-text"></div>
+      </div>
+      <div id="log-area"><div class="log-box" id="log-box"></div></div>
+    </div>
+  </div>
+
+  <div id="result-area">
+    <div class="result-card">
+      <div style="font-size:24px">✅</div>
+      <div class="result-info">
+        <div class="result-title" id="result-title"></div>
+        <div class="result-sub" id="result-sub"></div>
+      </div>
+      <button class="btn btn-primary" id="download-btn">⬇ 下載 xlsx</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ===== 範本管理（用 localStorage 持久化）=====
+const STORAGE_KEY = "comart_templates_v2";
+
+function loadTemplates() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveTemplates(list) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch(e) { alert("範本儲存失敗（容量不足）：" + e.message); }
+}
+
+let templates = loadTemplates();  // [{name, b64, sheets:[]}]
+let selectedTplIdx = templates.length > 0 ? 0 : -1;
+let files = [];
+let outputBlob = null;
+let pyodideReady = false;
+let pyodide = null;
+
+// ===== Pyodide =====
+async function loadPyodideEnv() {
+  const status = document.getElementById("pyodide-status");
+  try {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js";
+    document.head.appendChild(script);
+    await new Promise((res,rej) => { script.onload=res; script.onerror=rej; });
+    status.innerHTML = '<span class="spinner"></span> 載入 openpyxl…';
+    pyodide = await loadPyodide();
+    await pyodide.loadPackage("micropip");
+    const micropip = pyodide.pyimport("micropip");
+    await micropip.install("openpyxl");
+    pyodideReady = true;
+    status.innerHTML = "✅ Python 環境就緒";
+    status.style.color = "var(--success)";
+    enableUpload();
+    updateGenerateBtn();
+  } catch(e) {
+    status.innerHTML = "❌ 載入失敗：" + e.message;
+    status.style.color = "var(--error)";
+  }
+}
+
+function enableUpload() {
+  const zone = document.getElementById("upload-zone");
+  zone.style.pointerEvents = "";
+  zone.style.opacity = "";
+  document.getElementById("file-input").disabled = false;
+}
+
+// ===== 範本 UI =====
+function renderTemplates() {
+  const grid = document.getElementById("tpl-grid");
+  const badge = document.getElementById("tpl-count-badge");
+  badge.textContent = templates.length + " 個";
+  grid.innerHTML = "";
+
+  templates.forEach((tpl, idx) => {
+    const card = document.createElement("div");
+    card.className = "tpl-card" + (idx === selectedTplIdx ? " selected" : "");
+    card.onclick = () => selectTemplate(idx);
+    card.innerHTML = `
+      <button class="tpl-del" onclick="event.stopPropagation();deleteTemplate(${idx})" title="刪除">✕</button>
+      <div class="tpl-name">📄 ${tpl.name}</div>
+      <div class="tpl-sheets">${(tpl.sheets||[]).map(s=>"• "+s).join("<br>")}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // 更新已選範本顯示
+  const bar = document.getElementById("selected-tpl-bar");
+  if (selectedTplIdx >= 0 && templates[selectedTplIdx]) {
+    const t = templates[selectedTplIdx];
+    bar.style.display = "flex";
+    document.getElementById("selected-tpl-name").textContent = t.name;
+    document.getElementById("selected-tpl-sheets").textContent = (t.sheets||[]).length + " 張工作表";
+  } else {
+    bar.style.display = "none";
+  }
+  updateGenerateBtn();
+}
+
+function selectTemplate(idx) {
+  selectedTplIdx = idx;
+  renderTemplates();
+}
+
+function deleteTemplate(idx) {
+  if (!confirm("確定刪除範本「" + templates[idx].name + "」？")) return;
+  templates.splice(idx, 1);
+  if (selectedTplIdx >= templates.length) selectedTplIdx = templates.length - 1;
+  saveTemplates(templates);
+  renderTemplates();
+}
+
+// 新增範本
+document.getElementById("tpl-file-input").addEventListener("change", async function() {
+  const file = this.files[0];
+  if (!file) return;
+  this.value = "";
+  if (!file.name.match(/\.xlsx$/i)) { alert("範本必須是 .xlsx 格式"); return; }
+
+  // 讀取 b64 + 工作表名稱
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const b64 = btoa(binary);
+
+  // 用 SheetJS 讀工作表名稱
+  const wb = XLSX.read(bytes, { type: "array" });
+  const sheets = wb.SheetNames;
+
+  templates.push({ name: file.name.replace(/\.xlsx$/i, ""), b64, sheets });
+  selectedTplIdx = templates.length - 1;
+  saveTemplates(templates);
+  renderTemplates();
+});
+
+// ===== 上傳來源 =====
+const uploadZone = document.getElementById("upload-zone");
+const fileInput  = document.getElementById("file-input");
+uploadZone.addEventListener("dragover", e => { e.preventDefault(); uploadZone.classList.add("drag-over"); });
+uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
+uploadZone.addEventListener("drop", e => { e.preventDefault(); uploadZone.classList.remove("drag-over"); if(pyodideReady) addFiles([...e.dataTransfer.files]); });
+fileInput.addEventListener("change", () => { addFiles([...fileInput.files]); fileInput.value=""; });
+
+async function addFiles(newFiles) {
+  for (const f of newFiles) {
+    if (files.length >= 5) { alert("最多 5 個"); break; }
+    if (!f.name.match(/\.xls[x]?$/i)) { alert(f.name + " 格式不支援"); continue; }
+    if (files.find(x => x.file.name===f.name && x.file.size===f.size)) continue;
+    const item = { file:f, b64:null, structCode:null, matchedSheet:null, status:"loading", yearNow:null, yearPrev:null };
+    files.push(item);
+    renderFileList(); updateGenerateBtn();
+    readFileB64(item).then(() => { renderFileList(); updateGenerateBtn(); });
+  }
+}
+
+async function readFileB64(item) {
+  try {
+    const buf = await item.file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const isXls = item.file.name.toLowerCase().endsWith(".xls") && !item.file.name.toLowerCase().endsWith(".xlsx");
+    let xlsxBytes;
+    if (isXls) {
+      const wb = XLSX.read(bytes, { type:"array" });
+      const out = XLSX.write(wb, { bookType:"xlsx", type:"array" });
+      xlsxBytes = new Uint8Array(out);
+    } else {
+      xlsxBytes = bytes;
+    }
+    let binary = "";
+    for (let i = 0; i < xlsxBytes.length; i++) binary += String.fromCharCode(xlsxBytes[i]);
+    item.b64 = btoa(binary);
+
+    // 用 Pyodide 偵測報表結構代碼
+    const result = pyodide.runPython(`
+import base64, io, openpyxl
+_b = base64.b64decode("""${item.b64}""")
+_wb = openpyxl.load_workbook(io.BytesIO(_b))
+_ws = _wb.active
+_code = _name = _yn = _yp = None
+try:
+    for _r in range(max(1,_ws.max_row-25), _ws.max_row+1):
+        for _c in range(1,6):
+            _v = _ws.cell(_r,_c).value
+            if not _v: continue
+            _vs = str(_v).strip()
+            if _vs == "報表結構:":
+                _cv = _ws.cell(_r,3).value
+                if _cv: _code = str(_cv).strip()
+            if _vs == "報表結構名稱:":
+                _cv = _ws.cell(_r,3).value
+                if _cv: _name = str(_cv).strip()
+except: pass
+try:
+    for _c in range(1,30):
+        _v = _ws.cell(10,_c).value
+        if _v is None: continue
+        try:
+            _n = int(float(str(_v).strip())); _s = str(_n)
+        except: continue
+        import re as _re2
+        if _re2.match(r"20[23]\d$", _s):
+            if _yn is None: _yn = _s
+            elif _yp is None and _s != _yn: _yp = _s
+except: pass
+"|".join([str(_code or ""), str(_name or ""), str(_yn or ""), str(_yp or "")])
+`);
+    const parts = result.split("|");
+    item.structCode = parts[0] || null;
+    const structName = parts[1] || null;
+    item.yearNow  = parts[2] || null;
+    item.yearPrev = parts[3] || null;
+
+    const STRUCT_MAP = {"4008":"上下年度累積營業費用比較表","4002":"上下年度累積銷售費用比較表","4003":"上下年度累積管理費用比較表","4004":"上下年度累積研發費用比較表","4005":"上下年度累積製造費用比較表"};
+    const NAME_KW = [
+      [["銷管研","課營業費用"],"上下年度累積營業費用比較表"],
+      [["費用-銷","銷售費用"],"上下年度累積銷售費用比較表"],
+      [["費用-管","管理費用"],"上下年度累積管理費用比較表"],
+      [["費用-研","研發費用"],"上下年度累積研發費用比較表"],
+      [["製造費用","製造"],"上下年度累積製造費用比較表"],
+    ];
+    if (item.structCode && STRUCT_MAP[item.structCode]) {
+      item.matchedSheet = STRUCT_MAP[item.structCode];
+    } else if (structName) {
+      for (const [kws, sh] of NAME_KW) {
+        if (kws.some(k => structName.includes(k))) { item.matchedSheet = sh; break; }
+      }
+    }
+    item.status = item.matchedSheet ? "ok" : "warn";
+  } catch(e) {
+    item.status = "error"; console.error(e);
+  }
+}
+
+function renderFileList() {
+  const list = document.getElementById("file-list");
+  list.innerHTML = "";
+  document.getElementById("file-count-badge").textContent = files.length + " / 5";
+
+  const sheetCounts = {};
+  files.forEach(f => { if(f.matchedSheet) sheetCounts[f.matchedSheet]=(sheetCounts[f.matchedSheet]||0)+1; });
+
+  files.forEach((item, idx) => {
+    const el = document.createElement("div");
+    el.className = "file-item";
+    let icon, badgeHtml;
+    if (item.status==="loading") {
+      icon='<span class="spinner"></span>';
+      badgeHtml='<span class="match-badge match-pending">⏳ 識別中…</span>';
+    } else if (item.status==="error") {
+      icon="❌"; badgeHtml='<span class="match-badge match-err">✗ 無法讀取</span>';
+    } else if (item.matchedSheet) {
+      const dup = sheetCounts[item.matchedSheet]>1;
+      icon = dup?"⚠️":"✅";
+      const codeLabel = item.structCode?` (${item.structCode})`:"";
+      badgeHtml=`<span class="match-badge ${dup?"match-warn":"match-ok"}">${dup?"⚠️ 重複：":"✓ "}${item.matchedSheet}${codeLabel}</span>`;
+    } else {
+      icon="⚠️";
+      badgeHtml=`<span class="match-badge match-warn">⚠️ 無法識別（代碼=${item.structCode||"無"}）</span>`;
+    }
+    const kb = (item.file.size/1024).toFixed(0);
+    const periodLine = item.yearNow?`<div style="font-size:10.5px;color:var(--text-2);margin-top:4px">年份：${item.yearNow}　去年：${item.yearPrev||"-"}</div>`:"";
+    el.innerHTML=`
+      <div class="file-item-header">
+        <span class="status-icon">${icon}</span>
+        <span class="file-name" title="${item.file.name}">${item.file.name}</span>
+        <span class="file-size">${kb} KB</span>
+        <button class="file-remove" onclick="removeFile(${idx})">✕</button>
+      </div>
+      <div class="file-item-body"><div>${badgeHtml}</div>${periodLine}</div>`;
+    list.appendChild(el);
+  });
+}
+
+function removeFile(idx) { files.splice(idx,1); renderFileList(); updateGenerateBtn(); }
+
+function updateGenerateBtn() {
+  const btn = document.getElementById("generate-btn");
+  const msg = document.getElementById("check-msg");
+  if (!pyodideReady) { btn.disabled=true; msg.textContent="Python 環境載入中…"; return; }
+  if (selectedTplIdx < 0 || !templates[selectedTplIdx]) { btn.disabled=true; msg.textContent="請先選擇範本"; return; }
+  const ready = files.filter(f=>f.matchedSheet&&f.status==="ok");
+  const loading = files.filter(f=>f.status==="loading");
+  const dup = new Set(ready.map(f=>f.matchedSheet)).size < ready.length;
+  if (!files.length) { btn.disabled=true; msg.textContent="請上傳來源檔"; }
+  else if (loading.length) { btn.disabled=true; msg.textContent="識別中…"; }
+  else if (!ready.length) { btn.disabled=true; msg.textContent="無可識別的來源檔"; }
+  else if (dup) { btn.disabled=true; msg.textContent="有重複對應，請移除"; }
+  else { btn.disabled=false; msg.textContent=`${ready.length} 個已識別，可產生`; }
+}
+
+function resetAll() {
+  files=[]; outputBlob=null;
+  renderFileList(); updateGenerateBtn();
+  document.getElementById("progress-area").style.display="none";
+  document.getElementById("log-area").style.display="none";
+  document.getElementById("result-area").style.display="none";
+  document.getElementById("progress-bar").style.width="0%";
+}
+
+// ===== Generate =====
+function setProgress(pct,text) {
+  document.getElementById("progress-bar").style.width=pct+"%";
+  document.getElementById("progress-text").textContent=text;
+}
+function log(msg,cls="log-info") {
+  const box=document.getElementById("log-box");
+  const d=document.createElement("div"); d.className=cls; d.textContent=msg;
+  box.appendChild(d); box.scrollTop=box.scrollHeight;
+}
+
+async function generate() {
+  document.getElementById("generate-btn").disabled=true;
+  document.getElementById("result-area").style.display="none";
+  document.getElementById("progress-area").style.display="block";
+  document.getElementById("log-area").style.display="block";
+  document.getElementById("log-box").innerHTML="";
+  outputBlob=null;
+  setProgress(5,"準備中…");
+
+  const tpl = templates[selectedTplIdx];
+  log(`▶ 範本：${tpl.name}`, "log-info");
+
+  try {
+    const readyFiles = files.filter(f=>f.matchedSheet&&f.status==="ok");
+    const srcJson = JSON.stringify(readyFiles.map(f=>({name:f.file.name,b64:f.b64})));
+    setProgress(15,"呼叫 Python 處理…");
+
+    pyodide.globals.set("_template_b64", tpl.b64);
+    pyodide.globals.set("_src_json", srcJson);
+
+    const pyResult = await pyodide.runPythonAsync(`
+import base64, io, json, openpyxl, calendar as cal, re
+from openpyxl.cell.cell import MergedCell
+from datetime import date
+
+STRUCT_MAP = {"4008":"上下年度累積營業費用比較表","4002":"上下年度累積銷售費用比較表","4003":"上下年度累積管理費用比較表","4004":"上下年度累積研發費用比較表","4005":"上下年度累積製造費用比較表"}
+NAME_KEYWORDS = [
+    (["銷管研","課營業費用"], "上下年度累積營業費用比較表"),
+    (["費用-銷","銷售費用"],   "上下年度累積銷售費用比較表"),
+    (["費用-管","管理費用"],   "上下年度累積管理費用比較表"),
+    (["費用-研","研發費用"],   "上下年度累積研發費用比較表"),
+    (["製造費用","製造"],       "上下年度累積製造費用比較表"),
+]
+SKIP_WORDS = ["報表結構","核准"]
+
+def safe_write(ws, row, col, value):
+    if value is None: return False
+    cell = ws.cell(row, col)
+    if isinstance(cell, MergedCell): return False
+    try: cell.value = float(value); return True
+    except: return False
+
+def detect_sheet(src_ws):
+    code = name = None
+    for r in range(max(1, src_ws.max_row-25), src_ws.max_row+1):
+        for c in range(1,6):
+            try:
+                v = src_ws.cell(r,c).value
+                if not v: continue
+                vs = str(v).strip()
+                if vs == "報表結構:":
+                    cv = src_ws.cell(r,3).value
+                    if cv: code = str(cv).strip()
+                if vs == "報表結構名稱:":
+                    cv = src_ws.cell(r,3).value
+                    if cv: name = str(cv).strip()
+            except: pass
+    if code and code in STRUCT_MAP: return STRUCT_MAP[code], code
+    if name:
+        for kws, sh in NAME_KEYWORDS:
+            if any(k in name for k in kws): return sh, code
+    return None, code
+
+def find_data_cols(ws, sample_rows=5):
+    candidates = {}
+    checked = 0
+    for r in range(13, min(ws.max_row+1, 200)):
+        cell = ws.cell(r,1)
+        if isinstance(cell, MergedCell) or not cell.value: continue
+        key = str(cell.value).strip()
+        if not key or any(w in key for w in SKIP_WORDS): continue
+        for c in range(2, 35):
+            try:
+                v = ws.cell(r,c).value
+                if v is not None and v != "" and v != 0:
+                    float(v); candidates[c] = candidates.get(c,0)+1
+            except: pass
+        checked += 1
+        if checked >= sample_rows: break
+    top = sorted([c for c,n in candidates.items() if n>=2])
+    return top[:6] if len(top)>=6 else None
+
+def get_period(src_ws):
+    """從來源檔讀期間，回傳 (今年字串, 去年字串) 如 ('2026/1~4', '2025/1~4')"""
+    ch2num = {"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,
+              "九":9,"十":10,"十一":11,"十二":12}
+
+    # 蒐集所有有值儲存格（row1~12）
+    all_cells = {}
+    for r in range(1, 13):
+        for c in range(1, 32):
+            try:
+                v = src_ws.cell(r, c).value
+                if v is not None and str(v).strip():
+                    all_cells[(r,c)] = str(v).strip()
+            except: pass
+
+    # Step1: 找「第X期-第X期」格式的期間文字
+    period_raw = None
+    for (r,c), s in all_cells.items():
+        if "第" in s and "期" in s:
+            period_raw = s
+            break
+
+    # Step2: 只掃 Row10 找年份整數（2020~2039），依欄號順序取今年/去年
+    years = []
+    for c in range(1, 32):
+        v = src_ws.cell(10, c).value
+        if v is None: continue
+        try:
+            n = int(float(str(v).strip()))
+            s = str(n)
+        except: continue
+        if re.match(r"20[23]\d$", s) and s not in years:
+            years.append(s)
+
+    yr_now  = years[0] if len(years) > 0 else None
+    yr_prev = years[1] if len(years) > 1 else None
+
+    # Step3: 解析期間文字 → 月份範圍
+    if period_raw and yr_now:
+        m2 = re.search(r"第(.+?)期.第(.+?)期", period_raw)
+        if m2:
+            end_ch = m2.group(2).strip()
+            end_num = ch2num.get(end_ch)
+            if end_num is None:
+                try: end_num = int(end_ch)
+                except: pass
+            if end_num:
+                p = f"1~{end_num}"
+                return f"{yr_now}/{p}", f"{yr_prev}/{p}" if yr_prev else f"{int(yr_now)-1}/{p}"
+
+    # Fallback: 找完整 YYYY/M~M 格式（兩個，今年/去年）
+    full_periods = []
+    for (r,c), s in sorted(all_cells.items()):
+        if re.match(r"20\d{2}/\d+~\d+$", s) and s not in full_periods:
+            full_periods.append(s)
+    if len(full_periods) >= 2:
+        return full_periods[0], full_periods[1]
+    if len(full_periods) == 1:
+        # 推算去年
+        m3 = re.match(r"(20\d{2})(/\d+~\d+)$", full_periods[0])
+        if m3:
+            prev_yr = str(int(m3.group(1)) - 1)
+            return full_periods[0], prev_yr + m3.group(2)
+        return full_periods[0], None
+
+    return None, None
+
+tpl_wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(_template_b64)))
+src_files = json.loads(_src_json)
+logs = []
+total_written = 0
+period_info = None
+warn_sheets = []
+
+logs.append(("info", f"範本工作表: {list(tpl_wb.sheetnames)}"))
+
+for src_info in src_files:
+    fname = src_info["name"]
+    src_wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(src_info["b64"])))
+    src_ws = src_wb.active
+
+    matched_sheet, code = detect_sheet(src_ws)
+    if not matched_sheet:
+        logs.append(("warn", f"⚠ {fname}：無法識別，跳過"))
+        continue
+
+    if matched_sheet not in tpl_wb.sheetnames:
+        logs.append(("warn", f"⚠ {fname} → {matched_sheet}：範本內無此工作表，跳過"))
+        continue
+
+    logs.append(("info", f"─ {fname}  →  {matched_sheet}" + (f" ({code})" if code else "")))
+
+    if period_info is None:
+        yn, yp = get_period(src_ws)
+        if yn: period_info = {"yn": yn, "yp": yp or ""}
+        logs.append(("info", f"  期間偵測: yn={yn}, yp={yp}"))
+
+    data_cols = find_data_cols(src_ws) or [11,16,20,24,26,29]
+    TGT_COLS  = [11,16,20,24,26,29]
+    logs.append(("info", f"  來源資料欄: col{data_cols}"))
+
+    src_data = {}
+    for r in range(13, src_ws.max_row+1):
+        try:
+            cell = src_ws.cell(r,1)
+            if isinstance(cell, MergedCell) or not cell.value: continue
+            key = str(cell.value).strip()
+            if not key: continue
+            src_data[key] = {TGT_COLS[i]: src_ws.cell(r, src_c).value for i,src_c in enumerate(data_cols)}
+        except: continue
+
+    tgt_ws = tpl_wb[matched_sheet]
+    written = not_matched = 0
+
+    for r in range(13, tgt_ws.max_row+1):
+        try:
+            cell = tgt_ws.cell(r,1)
+            if isinstance(cell, MergedCell) or not cell.value: continue
+            key = str(cell.value).strip()
+            if not key or any(w in key for w in SKIP_WORDS): continue
+        except: continue
+        if key in src_data:
+            d = src_data[key]
+            w = sum(1 for c in TGT_COLS if safe_write(tgt_ws,r,c,d.get(c)))
+            if w: written += 1
+        else:
+            not_matched += 1
+
+    logs.append(("ok", f"  ✓ 寫入 {written} 筆" + (f"，未對應 {not_matched} 筆" if not_matched else "")))
+    total_written += written
+    if not_matched: warn_sheets.append(matched_sheet)
+
+# 期間標頭：掃描範本所有工作表 Row1~12，找年份數字和期間文字，替換成來源的值
+if period_info:
+    yn = period_info.get("yn", "")   # e.g. "2026/1~4"
+    yp = period_info.get("yp", "")   # e.g. "2025/1~4"
+
+    # 從期間字串拆出各種格式的今年/去年值
+    # yn="2026/1~4" → yr_now="2026", period_str="第一期-第四期", yn_full="2026/1~4"
+    yr_now = yr_prev = period_str_now = period_str_prev = None
+    m_yn = re.match(r"(20\d{2})/(\d+)~(\d+)$", yn)
+    if m_yn:
+        yr_now = m_yn.group(1)
+        end_num = int(m_yn.group(3))
+        num2ch = {1:"一",2:"二",3:"三",4:"四",5:"五",6:"六",7:"七",8:"八",9:"九",10:"十",11:"十一",12:"十二"}
+        period_str_now = f"第一期-第{num2ch.get(end_num,str(end_num))}期"
+    m_yp = re.match(r"(20\d{2})/(\d+)~(\d+)$", yp)
+    if m_yp:
+        yr_prev = m_yp.group(1)
+        end_num_p = int(m_yp.group(3))
+        period_str_prev = f"第一期-第{num2ch.get(end_num_p,str(end_num_p))}期"
+
+    logs.append(("info", f"期間更新: yr_now={yr_now}, yr_prev={yr_prev}, period={period_str_now}"))
+
+    def update_period_in_sheet(ws):
+        updated = []
+        for r in range(1, 13):
+            for c in range(1, 32):
+                try:
+                    cell = ws.cell(r, c)
+                    if isinstance(cell, MergedCell): continue
+                    v = cell.value
+                    if v is None: continue
+                    vs = str(v).strip()
+
+                    # 年份數字替換（整數型）
+                    try:
+                        n = int(float(vs))
+                        ns = str(n)
+                        if re.match(r"20[23]\d$", ns):
+                            if yr_now and ns == yr_now:
+                                pass  # 已是今年，不動
+                            elif yr_prev and ns == yr_prev:
+                                pass  # 已是去年，不動
+                            else:
+                                # 舊年份 → 用今年或去年替換
+                                # 依欄的相對位置判斷：先出現的=今年，後出現的=去年
+                                if yr_now:
+                                    cell.value = int(yr_now) if isinstance(v, (int, float)) else yr_now
+                                    updated.append(f"R{r}C{c}:{v}→{yr_now}")
+                    except: pass
+
+                    # 期間文字替換（「第X期-第X期」）
+                    if "第" in vs and "期" in vs:
+                        if period_str_now and vs != period_str_now:
+                            cell.value = period_str_now
+                            updated.append(f"R{r}C{c}:{vs}→{period_str_now}")
+
+                    # 完整格式替換（「YYYY/M~M」）
+                    if re.match(r"20\d{2}/\d+~\d+$", vs):
+                        if vs != yn and yr_now and vs.startswith(yr_now):
+                            cell.value = yn
+                            updated.append(f"R{r}C{c}:{vs}→{yn}")
+                        elif vs != yp and yr_prev and vs.startswith(yr_prev):
+                            cell.value = yp
+                            updated.append(f"R{r}C{c}:{vs}→{yp}")
+
+                    # 公式參照直接改成值
+                    if vs.startswith("="):
+                        if "!L10" in vs or "!U10" in vs:
+                            # 判斷是今年還是去年欄
+                            ref_val = yn if c <= 16 else yp
+                            if ref_val:
+                                cell.value = ref_val
+                                updated.append(f"R{r}C{c}: formula→{ref_val}")
+                except: pass
+        return updated
+
+    # 第一張表：找出今年/去年年份位置（依欄號左=今年右=去年）
+    first_ws = tpl_wb[tpl_wb.sheetnames[0]]
+    yr_positions = []  # [(row, col, old_val)]
+    for r in range(1, 13):
+        for c in range(1, 32):
+            try:
+                cell = first_ws.cell(r, c)
+                if isinstance(cell, MergedCell): continue
+                v = cell.value
+                if v is None: continue
+                try:
+                    n = int(float(str(v).strip()))
+                    if re.match(r"20[23]\d$", str(n)):
+                        yr_positions.append((r, c, str(n)))
+                except: pass
+            except: pass
+
+    # 依欄號排序：第一個出現的年份=今年，第二個=去年
+    yr_positions.sort(key=lambda x: (x[0], x[1]))
+    yr_map = {}  # old_yr -> new_yr
+    seen = []
+    for r, c, y in yr_positions:
+        if y not in seen:
+            seen.append(y)
+    if len(seen) >= 2 and yr_now and yr_prev:
+        yr_map[seen[0]] = yr_now
+        yr_map[seen[1]] = yr_prev
+    elif len(seen) >= 1 and yr_now:
+        yr_map[seen[0]] = yr_now
+
+    logs.append(("info", f"  年份對應: {yr_map}"))
+
+    # 對所有工作表執行替換
+    for sname in tpl_wb.sheetnames:
+        ws = tpl_wb[sname]
+        updated = []
+        for r in range(1, 13):
+            for c in range(1, 32):
+                try:
+                    cell = ws.cell(r, c)
+                    if isinstance(cell, MergedCell): continue
+                    v = cell.value
+                    if v is None: continue
+                    vs = str(v).strip()
+
+                    # 年份數字替換
+                    try:
+                        n = int(float(vs))
+                        ns = str(n)
+                        if ns in yr_map:
+                            new_v = int(yr_map[ns]) if isinstance(v, (int, float)) else yr_map[ns]
+                            cell.value = new_v
+                            updated.append(f"R{r}C{c}:{ns}→{yr_map[ns]}")
+                    except: pass
+
+                    # 期間文字替換
+                    if "第" in vs and "期" in vs and period_str_now:
+                        if yr_now and yr_now in str(ws.cell(r+1,c).value or ""):
+                            cell.value = period_str_now
+                        elif yr_prev and yr_prev in str(ws.cell(r+1,c).value or ""):
+                            cell.value = period_str_prev or period_str_now
+                        else:
+                            cell.value = period_str_now
+                        updated.append(f"R{r}C{c}:{vs}→{cell.value}")
+
+                    # 公式直接換值
+                    if vs.startswith("=") and ("L10" in vs or "U10" in vs):
+                        ref_val = yn if "L10" in vs else yp
+                        if ref_val:
+                            cell.value = ref_val
+                            updated.append(f"R{r}C{c}:formula→{ref_val}")
+                except: pass
+        if updated:
+            logs.append(("info", f"  [{sname}] {len(updated)} 格更新: {updated[:3]}{'…' if len(updated)>3 else ''}"))
+
+# 檔名
+def get_date_prefix(period_info):
+    if period_info:
+        m = re.match(r"(\d{4})/(\d+)~(\d+)", period_info.get("yn",""))
+        if m:
+            year, end_month = int(m.group(1)), int(m.group(3))
+            return f"{year}{end_month:02d}{cal.monthrange(year,end_month)[1]:02d}"
+    t = date.today()
+    return f"{t.year}{t.month:02d}{cal.monthrange(t.year,t.month)[1]:02d}"
+
+date_prefix = get_date_prefix(period_info)
+out_name = date_prefix + "合併費用比較表-VIVI.xlsx"
+buf = io.BytesIO()
+tpl_wb.save(buf)
+out_b64 = base64.b64encode(buf.getvalue()).decode()
+logs.append(("ok", f"▶ 完成！共寫入 {total_written} 筆 → {out_name}"))
+
+import json as _json
+_json.dumps({"out_b64":out_b64,"out_name":out_name,"logs":logs,"total_written":total_written,"warn_sheets":warn_sheets})
+`);
+
+    setProgress(95,"解析結果…");
+    const result = JSON.parse(pyResult);
+    result.logs.forEach(([cls,msg]) => log(msg, "log-"+cls));
+
+    const outBytes = Uint8Array.from(atob(result.out_b64), c=>c.charCodeAt(0));
+    outputBlob = new Blob([outBytes], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+
+    document.getElementById("download-btn").onclick = () => {
+      const url = URL.createObjectURL(outputBlob);
+      const a = document.createElement("a"); a.href=url; a.download=result.out_name; a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    setProgress(100,"完成！");
+    document.getElementById("result-title").textContent = "✅ " + result.out_name;
+    document.getElementById("result-sub").textContent =
+      `${files.filter(f=>f.matchedSheet).length} 個來源檔，寫入 ${result.total_written} 筆` +
+      (result.warn_sheets.length ? `｜${result.warn_sheets.length} 張工作表有未對應科目` : "，全部科目對應完成");
+    document.getElementById("result-area").style.display="block";
+
+  } catch(e) {
+    log("✗ 發生錯誤："+e.message,"log-err");
+    setProgress(0,"處理失敗"); console.error(e);
+  }
+  document.getElementById("generate-btn").disabled=false;
+}
+
+// init
+renderTemplates();
+loadPyodideEnv();
+</script>
+</body>
+</html>
